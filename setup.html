@@ -198,11 +198,15 @@ footer { text-align: center; color: var(--muted); font-size: 14px; padding: 20px
     <div class="body">
       <ol>
         <li>Sign in to the Google account you want to use (the Post's account if you made one).</li>
-        <li>Open <a href="https://sheets.new" target="_blank" rel="noopener"><b>sheets.new</b></a>. It opens a blank spreadsheet in a new tab.</li>
+        <li>Open <a href="https://sheets.new" target="_blank" rel="noopener"><b>sheets.new</b></a>. It opens a blank spreadsheet in a new tab.<br>
+          <small>(Or go to <a href="https://sheets.google.com" target="_blank" rel="noopener">sheets.google.com</a> and click <b class="ui">Blank spreadsheet</b>.)</small></li>
+      </ol>
+      <figure class="shot"><img src="img/02a-blank-sheet.png" alt="Google Sheets start page with Blank spreadsheet outlined in red" loading="lazy"><figcaption>On sheets.google.com, click Blank spreadsheet.</figcaption></figure>
+      <ol start="3">
         <li>Click the words <b class="ui">Untitled spreadsheet</b> at the top left.</li>
         <li>Type <code class="post-sheet">Post Inventory</code> and press <b class="ui">Enter</b>.</li>
       </ol>
-      <figure class="shot"><img src="img/02-rename-sheet.png" alt="A blank Google Sheet with the name box at the top left" loading="lazy"><figcaption>Click the name at the top left to rename it.</figcaption></figure>
+      <figure class="shot"><img src="img/02-rename-sheet.png" alt="A blank Google Sheet with the name box at the top left" loading="lazy"><figcaption>Click "Untitled spreadsheet" and type the new name.</figcaption></figure>
       <p class="see">A blank spreadsheet with your new name at the top.</p>
       <div class="donebtn"><label><input type="checkbox" data-done="2"> I did this</label></div>
     </div>
@@ -218,6 +222,9 @@ footer { text-align: center; color: var(--muted); font-size: 14px; padding: 20px
       <figure class="shot"><img src="img/03a-extensions-menu.png" alt="The Extensions menu in Google Sheets with Apps Script highlighted" loading="lazy"><figcaption>Extensions → Apps Script</figcaption></figure>
       <ol start="2">
         <li>Click inside the code box. Press <b class="ui">Ctrl</b>+<b class="ui">A</b> (Mac: <b class="ui">⌘</b>+<b class="ui">A</b>) to select everything, then press <b class="ui">Delete</b>. The box is now empty.</li>
+      </ol>
+      <figure class="shot"><img src="img/03-editor-empty.png" alt="The Apps Script editor with the starter code outlined in red" loading="lazy"><figcaption>Delete everything in the outlined box, including <code>function myFunction</code>.</figcaption></figure>
+      <ol start="3">
         <li>Come back to this page and click this button:</li>
       </ol>
       <div class="btns"><button class="btn primary big" type="button" id="copyCode">📋 Copy my code</button></div>
@@ -258,7 +265,13 @@ footer { text-align: center; color: var(--muted); font-size: 14px; padding: 20px
       <p>This gives your sheet a web address that the phones can talk to.</p>
       <ol>
         <li>In the code editor tab, click the blue <b class="ui">Deploy</b> button (top right) → <b class="ui">New deployment</b>.</li>
+      </ol>
+      <figure class="shot" style="max-width:320px"><img src="img/04a-deploy-menu.png" alt="The Deploy menu open with New deployment outlined in red" loading="lazy"><figcaption>Deploy → New deployment</figcaption></figure>
+      <ol start="2">
         <li>Next to <i>Select type</i>, click the ⚙️ gear → <b class="ui">Web app</b>.</li>
+      </ol>
+      <figure class="shot" style="max-width:560px"><img src="img/04b-web-app.png" alt="The New deployment window with the gear and Web app outlined in red" loading="lazy"><figcaption>Click the gear, then Web app.</figcaption></figure>
+      <ol start="3">
         <li>Fill in:
           <ul>
             <li><b>Description:</b> <code>inventory</code></li>
@@ -338,9 +351,19 @@ footer { text-align: center; color: var(--muted); font-size: 14px; padding: 20px
       </ol>
       <figure class="shot"><img src="img/07a-new-repo.png" alt="GitHub's new repository form with the name inventory, Public, and Add a README" loading="lazy"><figcaption>Name: inventory. Public. Add a README.</figcaption></figure>
       <ol start="6">
-        <li>On the next page, click <b class="ui">Add file</b> → <b class="ui">Upload files</b>.</li>
+        <li>On the next page, make sure you're on the <b class="ui">&lt;&gt; Code</b> tab. Then click <b class="ui">Add file</b> → <b class="ui">Upload files</b>.</li>
+      </ol>
+      <figure class="shot"><img src="img/07-add-file.png" alt="A GitHub repository page with the Code tab and the Add file button outlined in red" loading="lazy"><figcaption>The Code tab, then the Add file button (just left of the green Code button).</figcaption></figure>
+      <details class="help-q"><summary>I don't see "Add file"</summary>
+        <ul>
+          <li>Click the <b>&lt;&gt; Code</b> tab at the top left. The button only shows there, not on Settings.</li>
+          <li>If your window is narrow, it may only show a <b>+</b> icon next to "Go to file".</li>
+          <li>Or skip the button and open your upload page directly: <a class="upload-link" href="https://github.com/" target="_blank" rel="noopener">github.com/<i>your-username</i>/inventory/upload/main</a></li>
+        </ul>
+      </details>
+      <ol start="7">
         <li>Open your unzipped folder from step 6. Press <b class="ui">Ctrl</b>+<b class="ui">A</b> to select all 6 files, and drag them onto the GitHub page.</li>
-        <li>Wait until all 6 file names show up, then click the green <b class="ui">Commit changes</b> button.</li>
+        <li>Wait until all 6 file names show up, then click the green <b class="ui">Commit changes</b> button at the bottom.</li>
       </ol>
       <figure class="shot"><img src="img/07b-upload.png" alt="GitHub's upload page with six files listed and the Commit changes button" loading="lazy"><figcaption>Drag the 6 files in, then Commit changes.</figcaption></figure>
       <div class="warn">Only upload the 6 app files. Never upload sales reports, spreadsheets, or anything with PINs.</div>
@@ -522,6 +545,7 @@ function render() {
   $('#siteUrl').placeholder = guess || `https://vfwpost${num}.github.io/inventory/`;
   if (!$('#siteUrl').value && guess) $('#siteUrl').value = guess;
   $$('.site-link').forEach(el => { el.textContent = st.site || guess || 'your site address'; });
+  if (st.ghUser) $$('.upload-link').forEach(a => { a.href = `https://github.com/${encodeURIComponent(st.ghUser)}/inventory/upload/main`; a.textContent = `github.com/${st.ghUser}/inventory/upload/main`; });
   $('.zipname').textContent = zipName();
   drawPhoneQr();
   if (st.number) $('#iconPrev').src = iconDataUrl(144);
@@ -658,7 +682,8 @@ async function buildFiles() {
   if (!/\/\*CONFIG\*\/[\s\S]*?\/\*END CONFIG\*\//.test(html)) throw new Error('The app template is missing its settings block.');
   html = html.replace(/\/\*CONFIG\*\/[\s\S]*?\/\*END CONFIG\*\//, () => cfg);
   const manifest = JSON.stringify({
-    name: postName() + ' Inventory', short_name: 'Inventory', start_url: './', scope: './', display: 'standalone',
+    // Its own id, so other apps on the same github.io account can be installed beside it.
+    name: postName() + ' Inventory', short_name: 'Inventory', id: '/inventory/', start_url: './', scope: './', display: 'standalone',
     background_color: '#14284b', theme_color: '#14284b',
     icons: [{ src: 'icon-192.png', sizes: '192x192', type: 'image/png' }, { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }]
   }, null, 2);

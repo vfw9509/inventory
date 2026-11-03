@@ -8,8 +8,9 @@ self.addEventListener('install', e => {
 });
 
 self.addEventListener('activate', e => {
+  // Only clear this app's old caches: other apps on the same github.io account share the origin.
   e.waitUntil(caches.keys()
-    .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+    .then(keys => Promise.all(keys.filter(k => k.startsWith('vfwinv-') && k !== CACHE).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 
