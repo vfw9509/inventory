@@ -1,0 +1,1463 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Post 9509 Inventory</title>
+<meta name="theme-color" content="#14284b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Inventory">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+:root {
+  --bg: #f3f4f7; --surface: #ffffff; --surface-2: #eef0f4; --text: #141a24; --muted: #5d6676;
+  --line: #dde1e8; --brand: #14284b; --brand-ink: #ffffff; --accent: #b3121f; --accent-soft: #fde5e6;
+  --ok: #19794a; --ok-soft: #dff3e8; --warn: #a15c00; --warn-soft: #fff1d6; --focus: #2f6fe4;
+  --shadow: 0 1px 2px rgba(16,24,40,.06), 0 4px 16px rgba(16,24,40,.06);
+  --radius: 14px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1017; --surface: #171b24; --surface-2: #212734; --text: #e9ecf2; --muted: #9aa3b4;
+    --line: #2b3242; --brand: #1d3769; --brand-ink: #ffffff; --accent: #ff5a66; --accent-soft: #3a1a1f;
+    --ok: #4fcf8d; --ok-soft: #15301f; --warn: #f2b14c; --warn-soft: #3a2a10; --focus: #6d9eff;
+    --shadow: 0 1px 2px rgba(0,0,0,.4); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1017; --surface: #171b24; --surface-2: #212734; --text: #e9ecf2; --muted: #9aa3b4;
+  --line: #2b3242; --brand: #1d3769; --brand-ink: #ffffff; --accent: #ff5a66; --accent-soft: #3a1a1f;
+  --ok: #4fcf8d; --ok-soft: #15301f; --warn: #f2b14c; --warn-soft: #3a2a10; --focus: #6d9eff;
+  --shadow: 0 1px 2px rgba(0,0,0,.4); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  padding-bottom: calc(72px + env(safe-area-inset-bottom));
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+header.top {
+  position: sticky; top: 0; z-index: 20; background: var(--brand); color: var(--brand-ink);
+  padding: calc(10px + env(safe-area-inset-top)) 16px 10px; display: flex; align-items: center; gap: 10px;
+}
+header.top h1 { font-size: 17px; margin: 0; font-weight: 650; letter-spacing: .2px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pill { font-size: 12px; padding: 4px 9px; border-radius: 999px; background: rgba(255,255,255,.14); display: inline-flex; align-items: center; gap: 6px; border: 0; color: inherit; white-space: nowrap; }
+.pill i { width: 8px; height: 8px; border-radius: 50%; background: #9aa3b4; display: inline-block; }
+.pill.live i { background: #4fcf8d; } .pill.wait i { background: #f2b14c; } .pill.off i { background: #ff5a66; }
+.iconbtn { background: rgba(255,255,255,.14); border: 0; color: inherit; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; }
+
+main { max-width: 640px; margin: 0 auto; padding: 14px 16px 24px; }
+.view { display: none; } .view.on { display: block; }
+h2 { font-size: 20px; margin: 4px 0 12px; }
+h3 { font-size: 15px; margin: 18px 0 8px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
+p.hint { color: var(--muted); font-size: 14px; margin: 6px 0 12px; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px; margin-bottom: 12px; }
+.row { display: flex; gap: 10px; align-items: center; }
+.row > .grow { flex: 1; min-width: 0; }
+.stack > * + * { margin-top: 10px; }
+
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 12px 14px; font-weight: 600; min-height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.btn.block { width: 100%; }
+.btn.primary { background: var(--brand); color: var(--brand-ink); border-color: transparent; }
+.btn.good { background: #19794a; color: #fff; border-color: transparent; }
+.btn.bad { background: #b3121f; color: #fff; border-color: transparent; }
+.btn.ghost { background: transparent; }
+.btn.small { min-height: 38px; padding: 8px 12px; font-size: 14px; border-radius: 10px; }
+.btn:disabled { opacity: .5; cursor: default; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+label.f { display: block; font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
+input.t, select.t, textarea.t { width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 11px 12px; min-height: 46px; }
+textarea.t { min-height: 70px; resize: vertical; }
+.field + .field { margin-top: 12px; }
+.small-note { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+.reader-wrap { position: relative; background: #000; border-radius: var(--radius); overflow: hidden; aspect-ratio: 4 / 3; margin-bottom: 12px; }
+.reader-wrap.short { aspect-ratio: 16 / 9; }
+.reader-wrap > div[id^="reader"] { width: 100%; height: 100%; }
+.reader-wrap video { object-fit: cover; width: 100% !important; height: 100% !important; }
+.reader-cover { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: #fff; padding: 20px; background: linear-gradient(160deg, #14284b, #0b1426); }
+.reader-cover .btn { background: #fff; color: #14284b; border: 0; }
+.reader-cover small { display: block; margin-top: 10px; opacity: .8; font-size: 13px; }
+.reader-stop { position: absolute; top: 8px; right: 8px; z-index: 3; }
+.flash { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 4; background: rgba(25,121,74,.92); color: #fff; border-radius: 12px; padding: 10px 12px; font-weight: 650; display: none; }
+.flash.on { display: block; }
+
+.list { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.li { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-top: 1px solid var(--line); background: none; border-left: 0; border-right: 0; border-bottom: 0; width: 100%; text-align: left; }
+.li:first-child { border-top: 0; }
+.li .grow { flex: 1; min-width: 0; }
+.li .nm { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.li .sub { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.li .qty { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.li .qty b { font-size: 18px; }
+.li .qty span { color: var(--muted); font-size: 13px; }
+.empty { padding: 24px 16px; text-align: center; color: var(--muted); }
+.tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 6px; letter-spacing: .3px; }
+.tag.low { background: var(--accent-soft); color: var(--accent); }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.tag.warn { background: var(--warn-soft); color: var(--warn); }
+
+.chips { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 10px; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 7px 12px; font-size: 14px; white-space: nowrap; }
+.chip.on { background: var(--brand); color: var(--brand-ink); border-color: transparent; }
+
+nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; background: var(--surface); border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(5, 1fr); padding-bottom: env(safe-area-inset-bottom); }
+nav.tabs button { background: none; border: 0; padding: 8px 2px 9px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11.5px; color: var(--muted); font-weight: 600; min-height: 60px; }
+nav.tabs button svg { width: 24px; height: 24px; }
+nav.tabs button.on { color: var(--brand); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) nav.tabs button.on { color: #8fb2ff; } }
+:root[data-theme="dark"] nav.tabs button.on { color: #8fb2ff; }
+nav.tabs .badge { position: absolute; margin-left: 22px; margin-top: -2px; background: var(--accent); color: #fff; font-size: 10px; border-radius: 999px; padding: 1px 5px; }
+
+.overlay { position: fixed; inset: 0; z-index: 50; background: rgba(5,10,20,.55); display: flex; align-items: flex-end; justify-content: center; }
+.sheet { background: var(--surface); width: 100%; max-width: 640px; max-height: 92vh; overflow: auto; border-radius: 18px 18px 0 0; padding: 8px 16px calc(18px + env(safe-area-inset-bottom)); animation: up .18s ease-out; }
+@media (min-width: 700px) { .overlay { align-items: center; } .sheet { border-radius: 18px; } }
+@keyframes up { from { transform: translateY(30px); opacity: .4; } to { transform: none; opacity: 1; } }
+.sheet .grab { width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: 4px auto 10px; }
+.sheet-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+.sheet-head h2 { margin: 0; flex: 1; font-size: 20px; }
+.close { background: var(--surface-2); border: 0; width: 34px; height: 34px; border-radius: 50%; font-size: 18px; line-height: 1; flex: none; }
+
+.bignum { display: flex; gap: 10px; }
+.bignum > div { flex: 1; background: var(--surface-2); border-radius: 12px; padding: 10px 12px; }
+.bignum small { display: block; font-size: 12px; color: var(--muted); font-weight: 600; }
+.bignum b { font-size: 26px; font-variant-numeric: tabular-nums; }
+
+.stepper { display: flex; align-items: stretch; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.stepper button { width: 56px; border: 0; background: var(--surface-2); font-size: 24px; font-weight: 600; }
+.stepper input { flex: 1; border: 0; text-align: center; font-size: 24px; font-weight: 700; background: var(--surface); min-width: 0; padding: 8px 0; font-variant-numeric: tabular-nums; }
+.seg { display: flex; background: var(--surface-2); border-radius: 10px; padding: 3px; gap: 3px; }
+.seg button { flex: 1; border: 0; background: none; border-radius: 8px; padding: 8px; font-weight: 600; font-size: 14px; color: var(--muted); }
+.seg button.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+.banner { border-radius: 10px; padding: 10px 12px; font-size: 14px; margin: 10px 0; }
+.banner.info { background: var(--surface-2); }
+.banner.warn { background: var(--warn-soft); color: var(--warn); }
+.banner.bad { background: var(--accent-soft); color: var(--accent); }
+.banner.good { background: var(--ok-soft); color: var(--ok); }
+
+#toasts { position: fixed; left: 0; right: 0; bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 60; display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; padding: 0 16px; }
+.toast { pointer-events: auto; background: #1b2230; color: #fff; padding: 11px 14px; border-radius: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.25); display: flex; gap: 12px; align-items: center; max-width: 520px; width: 100%; font-size: 15px; }
+.toast.bad { background: #8d1019; }
+.toast button { background: none; border: 0; color: #8fb2ff; font-weight: 700; }
+.toast span { flex: 1; }
+
+table.prev { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.prev th, table.prev td { padding: 7px 6px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+table.prev td.n, table.prev th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+.spin { width: 18px; height: 18px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: sp .8s linear infinite; display: inline-block; vertical-align: middle; }
+@keyframes sp { to { transform: rotate(360deg); } }
+.hidden { display: none !important; }
+.count-n { min-width: 64px; text-align: center; font-weight: 700; font-size: 18px; border: 1px solid var(--line); border-radius: 10px; padding: 6px 4px; background: var(--surface); }
+.mini { width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); font-size: 20px; font-weight: 700; flex: none; }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Post 9509 Inventory</h1>
+  <button class="pill" id="syncPill" type="button" aria-label="Sync status"><i></i><span>Starting…</span></button>
+  <button class="iconbtn" id="refreshBtn" type="button" aria-label="Refresh from sheet">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg>
+  </button>
+</header>
+
+<main>
+  <!-- SCAN -->
+  <section class="view on" id="v-scan">
+    <div class="reader-wrap" id="wrap-scan">
+      <div id="reader-scan"></div>
+      <div class="reader-cover" id="cover-scan">
+        <div>
+          <button class="btn" type="button" data-cam-start="scan">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M10 8v8M13 8v8M17 8v8"/></svg>
+            Start scanning
+          </button>
+          <small>Point the camera at a bottle or case barcode</small>
+        </div>
+      </div>
+      <button class="btn small reader-stop hidden" type="button" data-cam-stop>Stop</button>
+    </div>
+    <form class="row" id="manualForm" autocomplete="off">
+      <input class="t grow" id="manualCode" inputmode="numeric" placeholder="Type a UPC or use a Bluetooth scanner" aria-label="UPC">
+      <button class="btn primary" type="submit">Go</button>
+    </form>
+    <div class="row" style="margin-top:10px">
+      <label class="btn small ghost grow" style="justify-content:flex-start">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/></svg>
+        Camera won't start? Snap a photo instead
+        <input type="file" accept="image/*" capture="environment" id="photoScan" class="hidden">
+      </label>
+    </div>
+    <h3>This shift</h3>
+    <div class="list" id="recentList"><div class="empty">Scan something to get started.</div></div>
+  </section>
+
+  <!-- ITEMS -->
+  <section class="view" id="v-items">
+    <div class="row" style="margin-bottom:10px">
+      <input class="t grow" id="itemSearch" type="search" placeholder="Search items" aria-label="Search items">
+      <button class="btn primary" type="button" id="addItemBtn">+ Add</button>
+    </div>
+    <div class="chips" id="catChips"></div>
+    <div class="list" id="itemList"></div>
+    <p class="hint" id="itemsSummary"></p>
+  </section>
+
+  <!-- COUNT -->
+  <section class="view" id="v-count">
+    <div id="countIdle">
+      <h2>Inventory count</h2>
+      <p class="hint">Walk the bar and scan every bottle, can or case. Each scan adds one. Type a number for anything without a barcode or for partial bottles (0.5). When you finish, the counts replace what's on the sheet. Items you skip stay the same.</p>
+      <button class="btn primary block" type="button" id="startCount">Start a count</button>
+    </div>
+    <div id="countLive" class="hidden">
+      <div class="reader-wrap short" id="wrap-count">
+        <div id="reader-count"></div>
+        <div class="reader-cover" id="cover-count">
+          <div><button class="btn" type="button" data-cam-start="count">Start camera</button><small>Each scan counts +1</small></div>
+        </div>
+        <button class="btn small reader-stop hidden" type="button" data-cam-stop>Stop</button>
+        <div class="flash" id="countFlash"></div>
+      </div>
+      <form class="row" id="countManual" autocomplete="off" style="margin-bottom:10px">
+        <input class="t grow" id="countCode" inputmode="numeric" placeholder="UPC (or Bluetooth scanner)" aria-label="UPC to count">
+        <button class="btn" type="submit">+1</button>
+      </form>
+      <button class="btn block" type="button" id="countPick">+ Count an item without a barcode</button>
+      <h3 id="countHead">Counted</h3>
+      <div class="list" id="countList"></div>
+      <div class="grid2" style="margin-top:14px">
+        <button class="btn" type="button" id="countDiscard">Discard</button>
+        <button class="btn good" type="button" id="countSave">Save count</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ORDER -->
+  <section class="view" id="v-order">
+    <h2>Order list</h2>
+    <p class="hint">Everything under par, with how many it takes to get back to par.</p>
+    <div id="orderBody"></div>
+    <div class="grid2" style="margin-top:12px">
+      <button class="btn" type="button" id="orderShare">Text / copy list</button>
+      <button class="btn" type="button" id="orderExcel">Download Excel</button>
+    </div>
+  </section>
+
+  <!-- MORE -->
+  <section class="view" id="v-more">
+    <div class="card stack" id="connCard"></div>
+
+    <h3>SkyTab (Shift4)</h3>
+    <div class="card stack">
+      <div>
+        <b>Take sales off inventory</b>
+        <p class="hint" style="margin:4px 0 10px">In SkyTab, go to Reports → <i>Sales Summary by Item</i>, pick the dates since your last import, and export to Excel. Then load the file here.</p>
+        <label class="btn primary block">Import a SkyTab sales report<input type="file" id="salesFile" class="hidden" accept=".xls,.xlsx,.csv"></label>
+      </div>
+      <div>
+        <b>Add items from a spreadsheet</b>
+        <p class="hint" style="margin:4px 0 10px">Works with SkyTab's <i>Menu Item Detail</i> export, the Post 9509 starter list, or any sheet with a Name column.</p>
+        <label class="btn block">Import items<input type="file" id="itemsFile" class="hidden" accept=".xls,.xlsx,.csv"></label>
+      </div>
+      <div>
+        <b>Send barcodes to SkyTab</b>
+        <p class="hint" style="margin:4px 0 10px">Downloads a CSV of SkyTab item names with their UPCs and costs, to update menu items in SkyTab.</p>
+        <button class="btn block" type="button" id="skytabExport">Download SkyTab UPC file</button>
+      </div>
+    </div>
+
+    <h3>Reports</h3>
+    <div class="card stack">
+      <button class="btn block" type="button" id="exportExcel">Download inventory (Excel)</button>
+      <button class="btn block" type="button" id="showLog">Recent activity</button>
+    </div>
+    <p class="hint" style="text-align:center">VFW Post 9509 · Inventory scanner v1.0</p>
+  </section>
+</main>
+
+<nav class="tabs" aria-label="Sections">
+  <button type="button" data-view="scan" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M10 8v8M13 8v8M17 8v8"/></svg>Scan</button>
+  <button type="button" data-view="items"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>Items</button>
+  <button type="button" data-view="count"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8l2 2 4-4M8 15h8"/></svg>Count</button>
+  <button type="button" data-view="order"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 4h2l2.4 11.2a1 1 0 0 0 1 .8h9.2a1 1 0 0 0 1-.8L20 8H6"/><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/></svg><span class="badge hidden" id="orderBadge"></span>Order</button>
+  <button type="button" data-view="more"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>More</button>
+</nav>
+<div id="toasts" aria-live="polite"></div>
+
+<script>
+'use strict';
+/* =========================================================== config */
+// The Post's Google Sheet web app. Phones use this unless someone pastes a different URL in More → Connection.
+const DEFAULT_API = 'https://script.google.com/macros/s/AKfycbwxZFDEI2dzFi2BTIvmjXhLRYFiwXNPjCo2iKSoOcWz0j350js0atA2LYU-hgTuYutqig/exec';
+const LIB_SCANNER ='https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+const LIB_XLSX = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+const DEFAULT_CATEGORIES = ['Liquor', 'Wine', 'Bottle Beer', 'Can Beer', 'Draft Beer', 'N/A Bev', 'Mixers', 'Bar Food', 'Supplies'];
+const UNITS = ['bottle', 'can', 'case', 'keg', 'each', 'box', 'bag', 'jar', 'lb'];
+const POUR_PRESETS = [
+  ['Sold whole (beer, can, snack)', 1], ['750 mL bottle · 1.5 oz shots', 16], ['1 L bottle · 1.5 oz shots', 22],
+  ['1.75 L bottle · 1.5 oz shots', 39], ['½ bbl keg · 16 oz pints', 110], ['⅙ bbl keg · 16 oz pints', 36]
+];
+const LS = { cfg: 'vfwinv.cfg', items: 'vfwinv.items', queue: 'vfwinv.queue', recent: 'vfwinv.recent', count: 'vfwinv.count', demo: 'vfwinv.demo' };
+
+/* =========================================================== utils */
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = s => String(s === undefined || s === null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const num = v => (v === '' || v === null || v === undefined || isNaN(Number(v))) ? null : Number(v);
+const fmt = v => { const n = num(v); if (n === null) return '–'; return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0+$/, '').replace(/\.$/, ''); };
+const round2 = n => Math.round(n * 100) / 100;
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const norm = s => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+function load(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
+function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage full or blocked */ } }
+function timeAgo(iso) {
+  const t = new Date(iso); if (isNaN(t)) return '';
+  const s = (Date.now() - t) / 1000;
+  if (s < 60) return 'just now'; if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+  return t.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+const scriptCache = {};
+function loadScript(src) {
+  if (!scriptCache[src]) scriptCache[src] = new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = src; s.onload = res;
+    s.onerror = () => { delete scriptCache[src]; rej(new Error('Could not load ' + src.split('/').pop() + ' — check signal')); };
+    document.head.appendChild(s);
+  });
+  return scriptCache[src];
+}
+
+function upcEtoA(e) {
+  const ns = e[0], d = e.slice(1, 7), chk = e[7], last = d[5];
+  let m;
+  if ('012'.includes(last)) m = d.slice(0, 2) + last + '0000' + d.slice(2, 5);
+  else if (last === '3') m = d.slice(0, 3) + '00000' + d.slice(3, 5);
+  else if (last === '4') m = d.slice(0, 4) + '00000' + d[4];
+  else m = d.slice(0, 5) + '0000' + last;
+  return ns + m + chk;
+}
+function normCode(text, format) {
+  let s = String(text || '').replace(/\D/g, '');
+  if (format === 'UPC_E' && s.length === 8) s = upcEtoA(s);
+  if (s.length === 13 && s[0] === '0') s = s.slice(1);
+  return s;
+}
+
+let audioCtx;
+function beep(ok = true) {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.frequency.value = ok ? 1250 : 330; g.gain.value = 0.07;
+    o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + (ok ? 0.08 : 0.2));
+  } catch (e) { /* no audio */ }
+  if (navigator.vibrate) navigator.vibrate(ok ? 40 : [60, 40, 60]);
+}
+
+/* =========================================================== toasts & sheets */
+function toast(msg, opts = {}) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (opts.bad ? ' bad' : '');
+  el.innerHTML = `<span>${esc(msg)}</span>${opts.action ? `<button type="button">${esc(opts.action)}</button>` : ''}`;
+  if (opts.action) $('button', el).onclick = () => { el.remove(); opts.onAction(); };
+  $('#toasts').appendChild(el);
+  setTimeout(() => el.remove(), opts.ms || (opts.action ? 6000 : 3000));
+}
+
+const sheets = [];
+function openSheet(title, html, opts = {}) {
+  const ov = document.createElement('div');
+  ov.className = 'overlay';
+  ov.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="grab"></div>
+    <div class="sheet-head"><h2>${esc(title)}</h2><button class="close" type="button" aria-label="Close">×</button></div>
+    <div class="sheet-body">${html}</div></div>`;
+  const entry = { el: ov, onClose: opts.onClose };
+  const close = () => closeSheet(entry);
+  $('.close', ov).onclick = close;
+  ov.addEventListener('click', e => { if (e.target === ov) close(); });
+  document.body.appendChild(ov);
+  sheets.push(entry);
+  entry.body = $('.sheet-body', ov);
+  entry.close = close;
+  return entry;
+}
+function closeSheet(entry) {
+  const i = sheets.indexOf(entry);
+  if (i < 0) return;
+  sheets.splice(i, 1);
+  entry.el.remove();
+  if (entry.onClose) entry.onClose();
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && sheets.length) sheets[sheets.length - 1].close(); });
+
+/* =========================================================== state */
+const S = {
+  cfg: load(LS.cfg, { api: DEFAULT_API, pin: '', user: '', demo: false }),
+  role: null,
+  items: load(LS.items, []),
+  queue: load(LS.queue, []),
+  recent: load(LS.recent, []),
+  count: load(LS.count, null),
+  online: navigator.onLine,
+  lastPull: 0,
+  syncing: false,
+  error: null,
+  view: 'scan',
+  cat: 'All'
+};
+const isDemo = () => !S.cfg.api && S.cfg.demo;
+const isManager = () => S.role === 'manager';
+function persistItems() { save(LS.items, S.items); }
+
+function findByCode(code) {
+  if (!code) return null;
+  for (const it of S.items) {
+    if (it.upc && String(it.upc) === code) return { item: it, isCase: false, mult: 1 };
+    if (it.caseUpc && String(it.caseUpc) === code) return { item: it, isCase: true, mult: num(it.caseQty) || 1 };
+  }
+  return null;
+}
+const itemById = id => S.items.find(i => i.id === id);
+function upsertLocal(it) {
+  const i = S.items.findIndex(x => x.id === it.id);
+  if (i >= 0) S.items[i] = it; else S.items.push(it);
+  persistItems();
+}
+const isLow = it => num(it.par) !== null && (num(it.onHand) || 0) < num(it.par);
+const toOrder = it => isLow(it) ? round2(num(it.par) - (num(it.onHand) || 0)) : 0;
+function categories() {
+  const set = new Set(DEFAULT_CATEGORIES);
+  S.items.forEach(i => i.category && set.add(i.category));
+  return [...set];
+}
+
+/* =========================================================== backend */
+const Demo = {
+  db() { return load(LS.demo, null) || this.seed(); },
+  seed() {
+    const mk = (name, category, unit, onHand, par, pours, posNames) => ({ id: 'D' + uid(), name, category, unit, upc: '', caseUpc: '', caseQty: '', onHand, par, cost: '', posNames: posNames || name, poursPerUnit: pours, lastCounted: '', updated: new Date().toISOString(), updatedBy: 'demo' });
+    const db = { items: [
+      mk('Bud Light (bottle)', 'Bottle Beer', 'bottle', 30, 48, 1, 'Bud Light'),
+      mk('Coors Light (bottle)', 'Bottle Beer', 'bottle', 52, 48, 1, 'Coors Light'),
+      mk('Crown Royal 750 mL', 'Liquor', 'bottle', 1, 4, 16, 'Crown Royal'),
+      mk('Captain Morgan 750 mL', 'Liquor', 'bottle', 2, 2, 16, 'Capt Morgan, Rum & Coke'),
+      mk('Coke (can)', 'N/A Bev', 'can', 20, 24, 1, 'Coke')
+    ], log: [] };
+    save(LS.demo, db); return db;
+  },
+  async call(action, p) {
+    const db = this.db();
+    const now = new Date().toISOString();
+    const log = (a, it, ch, note) => db.log.unshift({ at: now, user: S.cfg.user || 'demo', action: a, id: it.id, name: it.name, change: ch, onHand: it.onHand, note: note || '' });
+    let out;
+    switch (action) {
+      case 'ping': out = { ok: true, role: 'manager' }; break;
+      case 'items': out = { ok: true, role: 'manager', items: db.items }; break;
+      case 'log': out = { ok: true, entries: db.log.filter(e => !p.itemId || e.id === p.itemId).slice(0, p.limit || 100) }; break;
+      case 'lookup': out = { ok: true, product: await lookupDirect(p.upc) }; break;
+      case 'saveItem': {
+        const src = p.item;
+        const clash = code => code && db.items.find(i => i.id !== src.id && (i.upc === code || i.caseUpc === code));
+        for (const c of [src.upc, src.caseUpc]) { const o = clash(c); if (o) return { ok: false, error: `Barcode ${c} is already on "${o.name}"` }; }
+        let it = src.id && db.items.find(i => i.id === src.id);
+        if (it) { Object.assign(it, src); log('EDIT', it, '', ''); }
+        else { it = Object.assign({ category: '', unit: 'each', upc: '', caseUpc: '', caseQty: '', onHand: 0, par: '', cost: '', posNames: '', poursPerUnit: 1, lastCounted: '' }, src, { id: 'D' + uid() }); db.items.push(it); log('NEW ITEM', it, it.onHand, ''); }
+        it.updated = now; it.updatedBy = S.cfg.user;
+        out = { ok: true, item: it }; break;
+      }
+      case 'importItems': {
+        const made = p.items.map(src => Object.assign({ category: '', unit: 'each', upc: '', caseUpc: '', caseQty: '', onHand: 0, par: '', cost: '', posNames: '', poursPerUnit: 1, lastCounted: '' }, src, { id: 'D' + uid(), updated: now, updatedBy: S.cfg.user }));
+        db.items.push(...made); out = { ok: true, items: made, created: made.length }; break;
+      }
+      case 'deleteItem': db.items = db.items.filter(i => i.id !== p.id); out = { ok: true }; break;
+      case 'batch': {
+        if (p.importKey) { db.imports = db.imports || {}; if (db.imports[p.importKey] && !p.force) return { ok: false, code: 'duplicate_import', error: 'This sales report was already imported on ' + db.imports[p.importKey] }; db.imports[p.importKey] = new Date().toLocaleString(); }
+        const changed = {}; const results = [];
+        p.ops.forEach(o => {
+          const it = db.items.find(i => i.id === o.id); if (!it) { results.push({ opId: o.opId, ok: false, error: 'Item not found' }); return; }
+          const before = num(it.onHand) || 0; let after = o.mode === 'add' ? before + o.qty : o.mode === 'remove' ? before - o.qty : o.qty;
+          after = round2(after); it.onHand = after; if (o.mode === 'set') it.lastCounted = now; changed[it.id] = it;
+          log({ add: 'RECEIVED', remove: o.source === 'sales' ? 'SOLD (SkyTab)' : 'REMOVED', set: 'COUNT' }[o.mode], it, round2(after - before), o.note);
+          results.push({ opId: o.opId, ok: true });
+        });
+        out = { ok: true, results, items: Object.values(changed) }; break;
+      }
+      default: out = { ok: false, error: 'Unknown action' };
+    }
+    db.log = db.log.slice(0, 500);
+    save(LS.demo, db);
+    return JSON.parse(JSON.stringify(out));
+  }
+};
+
+async function lookupDirect(upc) {
+  try {
+    const r = await fetch(`https://world.openfoodfacts.org/api/v2/product/${upc}.json?fields=product_name,brands,quantity`);
+    if (r.ok) { const p = (await r.json()).product; if (p && p.product_name) return { name: p.product_name, brand: p.brands || '', size: p.quantity || '', source: 'Open Food Facts' }; }
+  } catch (e) { /* offline */ }
+  return null;
+}
+
+class NetError extends Error {}
+async function api(action, payload = {}) {
+  if (isDemo()) return Demo.call(action, payload);
+  if (!S.cfg.api) throw new Error('Not connected — open More → Connection');
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 30000);
+  let res;
+  try {
+    res = await fetch(S.cfg.api, {
+      method: 'POST', redirect: 'follow', signal: ctl.signal,
+      body: JSON.stringify(Object.assign({ action, pin: S.cfg.pin, user: S.cfg.user }, payload))
+    });
+  } catch (e) {
+    throw new NetError('No connection');
+  } finally { clearTimeout(timer); }
+  let data;
+  try { data = await res.json(); } catch (e) { throw new Error('The sheet sent back something unexpected. Check the web app URL and that it is deployed for "Anyone".'); }
+  if (data && data.code === 'pin') { S.role = null; S.error = 'Wrong PIN'; renderPill(); }
+  return data;
+}
+
+async function pull(force, quiet) {
+  if (!S.cfg.api && !S.cfg.demo) { renderPill(); return; }
+  if (!force && Date.now() - S.lastPull < 45000) return;
+  try {
+    await flush();
+    const r = await api('items');
+    if (!r.ok) { S.error = r.error; renderPill(); if (force) toast(r.error, { bad: true }); return; }
+    S.role = r.role; S.error = null; S.online = true;
+    // Keep optimistic values for anything still waiting to sync.
+    const pending = pendingDeltaById();
+    S.items = r.items.map(it => pending[it.id] ? Object.assign({}, it, { onHand: applyPending(it.onHand, pending[it.id]) }) : it);
+    persistItems();
+    S.lastPull = Date.now();
+    if (force && !quiet) toast('Up to date · ' + S.items.length + ' items');
+  } catch (e) {
+    if (e instanceof NetError) S.online = false; else S.error = e.message;
+    if (force) toast(e.message, { bad: true });
+  }
+  renderPill(); renderAll();
+}
+
+/* ------------------------------------------------ change queue (works offline) */
+function pendingDeltaById() {
+  const m = {};
+  S.queue.forEach(o => { (m[o.id] = m[o.id] || []).push(o); });
+  return m;
+}
+function applyPending(onHand, ops) {
+  let v = num(onHand) || 0;
+  ops.forEach(o => { v = o.mode === 'add' ? v + o.qty : o.mode === 'remove' ? v - o.qty : o.qty; });
+  return round2(v);
+}
+
+function stockChange(item, mode, qty, note, extra = {}) {
+  const op = Object.assign({ opId: uid(), id: item.id, mode, qty: round2(qty), note: note || '', at: new Date().toISOString() }, extra);
+  const before = num(item.onHand) || 0;
+  item.onHand = applyPending(before, [op]);
+  if (mode === 'set') item.lastCounted = op.at;
+  persistItems();
+  S.queue.push(op); save(LS.queue, S.queue);
+  addRecent({ opId: op.opId, id: item.id, name: item.name, mode, qty: op.qty, after: item.onHand, at: op.at, before });
+  renderPill(); renderAll();
+  flush();
+  return op;
+}
+
+let flushing = null;
+function flush() {
+  if (flushing) return flushing;
+  if (!S.queue.length) return Promise.resolve();
+  if (!S.cfg.api && !S.cfg.demo) return Promise.resolve();
+  flushing = (async () => {
+    S.syncing = true; renderPill();
+    try {
+      const batch = S.queue.slice(0, 200);
+      const r = await api('batch', { ops: batch });
+      if (!r.ok) {
+        S.error = r.error;
+        if (r.code !== 'pin') {
+          // A server-side rejection of the whole batch: drop it so the queue can't jam.
+          toast('Sheet refused changes: ' + r.error, { bad: true, ms: 6000 });
+          S.queue = S.queue.slice(batch.length);
+        }
+      } else {
+        S.error = null; S.online = true;
+        const sent = new Set(batch.map(o => o.opId));
+        S.queue = S.queue.filter(o => !sent.has(o.opId));
+        (r.results || []).filter(x => !x.ok).forEach(x => toast('Not saved: ' + x.error, { bad: true }));
+        const pending = pendingDeltaById();
+        (r.items || []).forEach(it => upsertLocal(pending[it.id] ? Object.assign({}, it, { onHand: applyPending(it.onHand, pending[it.id]) }) : it));
+      }
+      save(LS.queue, S.queue);
+    } catch (e) {
+      if (e instanceof NetError) S.online = false; else S.error = e.message;
+    } finally {
+      S.syncing = false; flushing = null; renderPill(); renderAll();
+    }
+    if (S.queue.length && S.online && !S.error) return flush();
+  })();
+  return flushing;
+}
+window.addEventListener('online', () => { S.online = true; flush(); });
+window.addEventListener('offline', () => { S.online = false; renderPill(); });
+setInterval(() => { if (S.queue.length) flush(); }, 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) pull(false); });
+
+function addRecent(r) {
+  S.recent.unshift(r);
+  S.recent = S.recent.slice(0, 30);
+  save(LS.recent, S.recent);
+}
+function undoRecent(opId) {
+  const r = S.recent.find(x => x.opId === opId);
+  const it = r && itemById(r.id);
+  if (!r || !it || r.undone) return;
+  r.undone = true; save(LS.recent, S.recent);
+  if (r.mode === 'add') stockChange(it, 'remove', r.qty, 'Undo');
+  else if (r.mode === 'remove') stockChange(it, 'add', r.qty, 'Undo');
+  else stockChange(it, 'set', r.before, 'Undo count');
+  S.recent.shift(); // don't list the undo itself
+  save(LS.recent, S.recent); renderRecent();
+  toast('Undone');
+}
+
+function renderPill() {
+  const p = $('#syncPill');
+  let cls = '', txt;
+  if (!S.cfg.api && !S.cfg.demo) { cls = 'off'; txt = 'Not set up'; }
+  else if (isDemo()) { txt = 'Demo'; cls = S.queue.length ? 'wait' : ''; }
+  else if (S.error) { cls = 'off'; txt = S.error === 'Wrong PIN' ? 'Wrong PIN' : 'Error'; }
+  else if (S.queue.length) { cls = 'wait'; txt = S.online ? (S.syncing ? 'Saving…' : S.queue.length + ' waiting') : 'Offline · ' + S.queue.length; }
+  else if (!S.online) { cls = 'off'; txt = 'Offline'; }
+  else { cls = 'live'; txt = S.role === 'manager' ? 'Live · Mgr' : 'Live'; }
+  p.className = 'pill ' + cls;
+  $('span', p).textContent = txt;
+}
+$('#syncPill').onclick = () => {
+  if (S.error && S.error !== 'Wrong PIN') toast(S.error, { bad: true, ms: 6000 });
+  showView('more');
+};
+$('#refreshBtn').onclick = () => pull(true);
+
+/* =========================================================== camera scanner */
+const Cam = {
+  inst: null, target: null, handler: null, lastCode: '', lastAt: 0, cooldown: 1500,
+  async start(target, handler) {
+    await this.stop();
+    this.target = target; this.handler = handler;
+    const cover = $('#cover-' + target);
+    cover.innerHTML = '<div><span class="spin"></span><small>Opening camera…</small></div>';
+    try {
+      await loadScript(LIB_SCANNER);
+      const F = window.Html5QrcodeSupportedFormats;
+      this.inst = new window.Html5Qrcode('reader-' + target, {
+        verbose: false,
+        formatsToSupport: [F.UPC_A, F.UPC_E, F.EAN_13, F.EAN_8, F.CODE_128, F.CODE_39, F.ITF],
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+      });
+      await this.inst.start({ facingMode: 'environment' }, {
+        fps: 12,
+        qrbox: (w, h) => ({ width: Math.max(120, Math.floor(w * 0.82)), height: Math.max(80, Math.floor(Math.min(h * 0.55, w * 0.42))) })
+      }, (text, result) => this.onScan(text, result), () => {});
+      cover.classList.add('hidden');
+      $('#wrap-' + target + ' [data-cam-stop]').classList.remove('hidden');
+    } catch (e) {
+      this.inst = null;
+      cover.innerHTML = `<div><button class="btn" type="button" data-cam-start="${target}">Try again</button>
+        <small>${esc(camError(e))}</small></div>`;
+    }
+  },
+  onScan(text, result) {
+    const fmtName = result && result.result && result.result.format && result.result.format.formatName;
+    const code = normCode(text, fmtName);
+    if (!code || code.length < 6) return;
+    const now = Date.now();
+    if (code === this.lastCode && now - this.lastAt < this.cooldown) return;
+    this.lastCode = code; this.lastAt = now;
+    if (this.handler) this.handler(code);
+  },
+  pause() { try { if (this.inst && this.inst.getState() === 2) this.inst.pause(true); } catch (e) { /* not scanning */ } },
+  resume() { try { if (this.inst && this.inst.getState() === 3) { this.lastAt = Date.now(); this.inst.resume(); } } catch (e) { /* not paused */ } },
+  async stop() {
+    const inst = this.inst, target = this.target;
+    this.inst = null;
+    if (inst) { try { await inst.stop(); } catch (e) { /* already stopped */ } try { inst.clear(); } catch (e) { /* ignore */ } }
+    if (target) {
+      const cover = $('#cover-' + target);
+      cover.classList.remove('hidden');
+      cover.innerHTML = target === 'scan'
+        ? `<div><button class="btn" type="button" data-cam-start="scan">Start scanning</button><small>Point the camera at a bottle or case barcode</small></div>`
+        : `<div><button class="btn" type="button" data-cam-start="count">Start camera</button><small>Each scan counts +1</small></div>`;
+      $('#wrap-' + target + ' [data-cam-stop]').classList.add('hidden');
+    }
+  }
+};
+function camError(e) {
+  const m = String(e && (e.name || '') + ' ' + (e.message || e));
+  if (/NotAllowed|Permission/i.test(m)) return 'Camera permission was blocked. Allow the camera for this site in your browser settings, or type the barcode number below.';
+  if (/NotFound|no camera/i.test(m)) return 'No camera found on this device.';
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost') return 'The camera only works when this page is opened over https://';
+  return m.replace(/^\s+/, '').slice(0, 160);
+}
+document.addEventListener('click', e => {
+  const s = e.target.closest('[data-cam-start]');
+  if (s) Cam.start(s.dataset.camStart, s.dataset.camStart === 'scan' ? onScanCode : onCountCode);
+  if (e.target.closest('[data-cam-stop]')) Cam.stop();
+});
+
+$('#photoScan').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  toast('Reading barcode…');
+  try {
+    await loadScript(LIB_SCANNER);
+    const holder = document.createElement('div'); holder.id = 'reader-file'; holder.className = 'hidden'; document.body.appendChild(holder);
+    const inst = new window.Html5Qrcode('reader-file', { verbose: false });
+    const r = await inst.scanFileV2(f, false);
+    holder.remove();
+    onScanCode(normCode(r.decodedText, r.result && r.result.format && r.result.format.formatName));
+  } catch (err) {
+    const h = $('#reader-file'); if (h) h.remove();
+    toast('No barcode found in that photo — get closer and keep it flat', { bad: true });
+  }
+};
+$('#manualForm').onsubmit = e => {
+  e.preventDefault();
+  const code = normCode($('#manualCode').value);
+  $('#manualCode').value = '';
+  if (code) onScanCode(code);
+};
+
+/* =========================================================== scan flow */
+function onScanCode(code) {
+  const hit = findByCode(code);
+  beep(!!hit);
+  Cam.pause();
+  if (hit) itemSheet(hit.item, { isCase: hit.isCase, code, onClose: () => Cam.resume() });
+  else unknownSheet(code, { onClose: () => Cam.resume() });
+}
+
+function itemSheet(item, ctx = {}) {
+  let caseMode = !!ctx.isCase;
+  const cq = num(item.caseQty);
+  const sh = openSheet(item.name, '', { onClose: ctx.onClose });
+  const draw = () => {
+    const live = itemById(item.id) || item;
+    sh.body.innerHTML = `
+      <div class="small-note" style="margin:-6px 0 10px">${esc([live.category, live.unit].filter(Boolean).join(' · '))}${live.upc ? ' · UPC ' + esc(live.upc) : ''}</div>
+      <div class="bignum">
+        <div><small>On hand</small><b>${fmt(live.onHand)}</b> <span class="small-note">${esc(live.unit || '')}</span></div>
+        <div><small>Par</small><b>${fmt(live.par)}</b></div>
+        <div><small>To order</small><b style="color:${isLow(live) ? 'var(--accent)' : 'inherit'}">${fmt(toOrder(live))}</b></div>
+      </div>
+      ${cq ? `<div class="seg" style="margin-top:12px" role="group" aria-label="Counting in"><button type="button" data-u="1" class="${caseMode ? '' : 'on'}">Single ${esc(live.unit || 'units')}</button><button type="button" data-u="c" class="${caseMode ? 'on' : ''}">Cases of ${cq}</button></div>` : ''}
+      ${ctx.isCase && cq ? `<div class="banner info">You scanned the <b>case</b> barcode: 1 case = ${cq} ${esc(live.unit || 'units')}.</div>` : ''}
+      <div class="field" style="margin-top:12px">
+        <label class="f" for="q">How many${caseMode && cq ? ' cases' : ''}?</label>
+        <div class="stepper"><button type="button" data-step="-1" aria-label="Less">−</button><input id="q" type="number" inputmode="decimal" min="0" step="any" value="1"><button type="button" data-step="1" aria-label="More">+</button></div>
+        <div class="small-note" id="qNote"></div>
+      </div>
+      <div class="grid2" style="margin-top:12px">
+        <button class="btn good" type="button" data-act="add">＋ Received</button>
+        <button class="btn bad" type="button" data-act="remove">− Used / removed</button>
+      </div>
+      <div class="field">
+        <label class="f" for="why">Reason (for removals, optional)</label>
+        <select class="t" id="why"><option value="">Used at the bar</option><option>Spilled / broken</option><option>Comp / donated</option><option>Moved to canteen / kitchen</option><option>Expired</option><option>Other</option></select>
+      </div>
+      <button class="btn block" type="button" data-act="set" style="margin-top:12px">＝ Set on-hand to this number (count)</button>
+      <div class="grid2" style="margin-top:12px">
+        <button class="btn ghost small" type="button" data-act="hist">History</button>
+        <button class="btn ghost small" type="button" data-act="edit">${isManager() ? 'Edit item' : 'Item details'}</button>
+      </div>`;
+    const q = $('#q', sh.body);
+    const mult = () => (caseMode && cq ? cq : 1);
+    const note = () => {
+      const v = num(q.value) || 0;
+      $('#qNote', sh.body).textContent = caseMode && cq ? `= ${fmt(v * cq)} ${live.unit || 'units'}` : '';
+    };
+    note();
+    q.oninput = note;
+    $$('[data-step]', sh.body).forEach(b => b.onclick = () => { q.value = Math.max(0, (num(q.value) || 0) + Number(b.dataset.step)); note(); });
+    $$('[data-u]', sh.body).forEach(b => b.onclick = () => { caseMode = b.dataset.u === 'c'; draw(); });
+    $$('[data-act]', sh.body).forEach(b => b.onclick = () => {
+      const act = b.dataset.act;
+      if (act === 'hist') return historySheet(live);
+      if (act === 'edit') return editSheet(live, { onSaved: () => draw() });
+      const v = num(q.value);
+      if (v === null || v < 0) return toast('Enter a number', { bad: true });
+      const qty = round2(v * mult());
+      if ((act === 'add' || act === 'remove') && qty === 0) return toast('Quantity is 0', { bad: true });
+      const why = act === 'remove' ? $('#why', sh.body).value : (caseMode && cq ? `${fmt(v)} case(s)` : '');
+      const op = stockChange(live, act, qty, why);
+      sh.close();
+      const verb = act === 'add' ? `+${fmt(qty)}` : act === 'remove' ? `−${fmt(qty)}` : `= ${fmt(qty)}`;
+      toast(`${live.name}: ${verb} → ${fmt(live.onHand)} on hand`, { action: 'Undo', onAction: () => undoRecent(op.opId) });
+    });
+  };
+  draw();
+  return sh;
+}
+
+function unknownSheet(code, ctx = {}) {
+  const sh = openSheet('New barcode', `
+    <div class="banner info">Barcode <b>${esc(code)}</b> isn't in the inventory yet.</div>
+    <div class="seg" role="tablist" style="margin-bottom:12px"><button type="button" class="on" data-tab="new">Create new item</button><button type="button" data-tab="link">Add to existing item</button></div>
+    <div id="tabNew"><div id="lookupNote" class="small-note" style="margin-bottom:8px"><span class="spin"></span> Looking up product name…</div><div id="newForm"></div></div>
+    <div id="tabLink" class="hidden"><p class="hint">Pick the item this barcode belongs to (for example a new bottle size, or a case barcode).</p><div id="linkPicker"></div></div>`, ctx);
+  $$('[data-tab]', sh.body).forEach(b => b.onclick = () => {
+    $$('[data-tab]', sh.body).forEach(x => x.classList.toggle('on', x === b));
+    $('#tabNew', sh.body).classList.toggle('hidden', b.dataset.tab !== 'new');
+    $('#tabLink', sh.body).classList.toggle('hidden', b.dataset.tab !== 'link');
+  });
+  const formHost = $('#newForm', sh.body);
+  renderItemForm(formHost, { upc: code, onHand: 1, unit: 'bottle', poursPerUnit: 1 }, {
+    isNew: true, scannedCode: code,
+    onSaved: it => { sh.close(); toast(`Added ${it.name} · ${fmt(it.onHand)} on hand`); }
+  });
+  api('lookup', { upc: code }).then(r => {
+    const note = $('#lookupNote', sh.body); if (!note) return;
+    const p = r && r.ok && r.product;
+    if (p) {
+      const nm = [p.brand && !p.name.toLowerCase().includes(p.brand.toLowerCase()) ? p.brand : '', p.name, p.size].filter(Boolean).join(' ').trim();
+      const inp = $('[name=name]', formHost);
+      if (inp && !inp.value) inp.value = nm;
+      note.innerHTML = `Found <b>${esc(nm)}</b> in ${esc(p.source)} — check it and fix the name if needed.`;
+    } else note.textContent = 'No product name found online. Type the name below.';
+  }).catch(() => { const n = $('#lookupNote', sh.body); if (n) n.textContent = 'Offline — type the name below.'; });
+
+  itemPicker($('#linkPicker', sh.body), it => {
+    const cq = num(it.caseQty);
+    const s2 = openSheet('Add barcode to ' + it.name, `
+      <p class="hint">What does barcode ${esc(code)} go on?</p>
+      <div class="stack">
+        <button class="btn block" type="button" data-k="single" ${it.upc ? 'disabled' : ''}>A single ${esc(it.unit || 'unit')}${it.upc ? ' (already has one)' : ''}</button>
+        <div class="card stack" style="margin:0"><b>A case / pack</b>
+          <div class="row"><label class="f grow" for="cqn" style="margin:0">Units per case</label><input class="t" id="cqn" type="number" inputmode="numeric" style="width:100px" value="${cq || 24}"></div>
+          <button class="btn block" type="button" data-k="case" ${it.caseUpc ? 'disabled' : ''}>Use as case barcode${it.caseUpc ? ' (already has one)' : ''}</button>
+        </div>
+      </div>`);
+    $$('[data-k]', s2.body).forEach(b => b.onclick = async () => {
+      const patch = b.dataset.k === 'single' ? { id: it.id, upc: code } : { id: it.id, caseUpc: code, caseQty: num($('#cqn', s2.body).value) || 24 };
+      b.disabled = true;
+      const r = await saveItemRemote(patch);
+      if (!r) { b.disabled = false; return; }
+      s2.close(); sh.close();
+      toast('Barcode added to ' + r.name);
+    });
+  }, { preferNoUpc: true });
+}
+
+async function saveItemRemote(patch) {
+  try {
+    const r = await api('saveItem', { item: patch });
+    if (!r.ok) { toast(r.error, { bad: true, ms: 5000 }); return null; }
+    upsertLocal(r.item); renderAll();
+    return r.item;
+  } catch (e) {
+    toast(e instanceof NetError ? 'No signal — new items and edits need a connection. Try again in a spot with signal.' : e.message, { bad: true, ms: 6000 });
+    return null;
+  }
+}
+
+function renderItemForm(host, it, opts) {
+  const mgr = isManager() || opts.isNew;
+  const cats = categories();
+  const pours = num(it.poursPerUnit) || 1;
+  host.innerHTML = `
+    <form autocomplete="off">
+      <div class="field"><label class="f">Name</label><input class="t" name="name" required value="${esc(it.name || '')}" placeholder="e.g. Crown Royal 750 mL" ${mgr ? '' : 'readonly'}></div>
+      <div class="grid2" style="margin-top:12px">
+        <div><label class="f">Category</label><input class="t" name="category" list="catList" value="${esc(it.category || '')}" ${mgr ? '' : 'readonly'}><datalist id="catList">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist></div>
+        <div><label class="f">Counted as</label><input class="t" name="unit" list="unitList" value="${esc(it.unit || '')}" ${mgr ? '' : 'readonly'}><datalist id="unitList">${UNITS.map(c => `<option value="${esc(c)}">`).join('')}</datalist></div>
+      </div>
+      ${opts.isNew ? `
+        <div class="field" style="margin-top:12px"><label class="f">The barcode I scanned is on</label>
+          <div class="seg"><button type="button" class="on" data-scan="single">A single unit</button><button type="button" data-scan="case">A case / pack</button></div>
+          <div id="caseRow" class="hidden row" style="margin-top:8px"><label class="f grow" style="margin:0">Units per case</label><input class="t" name="caseQtyNew" type="number" inputmode="numeric" style="width:100px" value="24"></div>
+        </div>` : ''}
+      <div class="grid2" style="margin-top:12px">
+        <div><label class="f">${opts.isNew ? 'How many are here now?' : 'On hand'}</label><input class="t" name="onHand" type="number" inputmode="decimal" step="any" value="${esc(it.onHand ?? '')}" ${isManager() || opts.isNew ? '' : 'readonly'}><div class="small-note" id="ohNote">${opts.isNew ? 'single units' : ''}</div></div>
+        <div><label class="f">Par (keep on hand)</label><input class="t" name="par" type="number" inputmode="decimal" step="any" value="${esc(it.par ?? '')}" ${mgr ? '' : 'readonly'}></div>
+      </div>
+      ${opts.isNew ? '' : `
+      <div class="grid2" style="margin-top:12px">
+        <div><label class="f">Single UPC</label><input class="t" name="upc" inputmode="numeric" value="${esc(it.upc || '')}" ${mgr ? '' : 'readonly'}></div>
+        <div><label class="f">Case UPC</label><input class="t" name="caseUpc" inputmode="numeric" value="${esc(it.caseUpc || '')}" ${mgr ? '' : 'readonly'}></div>
+      </div>
+      <div class="field" style="margin-top:12px"><label class="f">Units per case</label><input class="t" name="caseQty" type="number" inputmode="numeric" value="${esc(it.caseQty ?? '')}" ${mgr ? '' : 'readonly'}></div>`}
+      ${isManager() ? `
+      <details style="margin-top:12px" ${opts.isNew ? '' : 'open'}><summary>SkyTab link &amp; cost</summary>
+        <div class="field"><label class="f">Cost per ${esc(it.unit || 'unit')} ($)</label><input class="t" name="cost" type="number" inputmode="decimal" step="0.01" value="${esc(it.cost ?? '')}"></div>
+        <div class="field"><label class="f">SkyTab item names that use this</label><textarea class="t" name="posNames" placeholder="Crown Royal, Crown & Coke">${esc(it.posNames || '')}</textarea>
+          <div class="small-note">Comma-separated, spelled exactly like the SkyTab sales report. Leave blank to match the item name.</div></div>
+        <div class="field"><label class="f">SkyTab sales per ${esc(it.unit || 'unit')}</label>
+          <select class="t" name="pourPreset">${POUR_PRESETS.map(([l, v]) => `<option value="${v}" ${v === pours ? 'selected' : ''}>${esc(l)} (${v})</option>`).join('')}<option value="custom" ${POUR_PRESETS.some(p => p[1] === pours) ? '' : 'selected'}>Custom…</option></select>
+          <input class="t ${POUR_PRESETS.some(p => p[1] === pours) ? 'hidden' : ''}" name="poursPerUnit" type="number" inputmode="decimal" step="any" value="${pours}" style="margin-top:8px">
+          <div class="small-note">How many SkyTab sales use up one ${esc(it.unit || 'unit')}. A 750 mL bottle pours about 16 shots.</div></div>
+      </details>` : ''}
+      ${mgr ? `<button class="btn primary block" type="submit" style="margin-top:14px">${opts.isNew ? 'Add item' : 'Save changes'}</button>` : '<p class="hint">Ask a manager to change item details.</p>'}
+      ${!opts.isNew && isManager() ? '<button class="btn ghost block" type="button" data-del style="margin-top:8px;color:var(--accent)">Delete item</button>' : ''}
+    </form>`;
+  const f = $('form', host);
+  let scanAsCase = false;
+  $$('[data-scan]', f).forEach(b => b.onclick = () => {
+    scanAsCase = b.dataset.scan === 'case';
+    $$('[data-scan]', f).forEach(x => x.classList.toggle('on', x === b));
+    $('#caseRow', f).classList.toggle('hidden', !scanAsCase);
+    $('#ohNote', f).textContent = scanAsCase ? 'cases (converted to single units)' : 'single units';
+    if (scanAsCase && f.unit.value === 'bottle') f.unit.value = 'bottle';
+  });
+  if (f.pourPreset) f.pourPreset.onchange = () => {
+    const c = f.pourPreset.value === 'custom';
+    f.poursPerUnit.classList.toggle('hidden', !c);
+    if (!c) f.poursPerUnit.value = f.pourPreset.value;
+  };
+  const del = $('[data-del]', f);
+  if (del) del.onclick = async () => {
+    if (!confirm(`Delete "${it.name}" from inventory? Its history stays in the Log sheet.`)) return;
+    try {
+      const r = await api('deleteItem', { id: it.id });
+      if (!r.ok) return toast(r.error, { bad: true });
+      S.items = S.items.filter(x => x.id !== it.id); persistItems(); renderAll();
+      toast('Deleted ' + it.name);
+      if (opts.onDeleted) opts.onDeleted();
+    } catch (e) { toast(e.message, { bad: true }); }
+  };
+  f.onsubmit = async e => {
+    e.preventDefault();
+    const btn = $('[type=submit]', f); btn.disabled = true;
+    const v = n => f[n] ? f[n].value : undefined;
+    const patch = { name: v('name').trim(), category: v('category').trim(), unit: v('unit').trim(), par: v('par') };
+    if (!patch.name) { btn.disabled = false; return toast('Give it a name', { bad: true }); }
+    if (opts.isNew) {
+      const cq = num(v('caseQtyNew')) || 24;
+      const n = num(v('onHand')) || 0;
+      if (scanAsCase) { patch.caseUpc = opts.scannedCode || ''; patch.caseQty = cq; patch.onHand = round2(n * cq); }
+      else { patch.upc = opts.scannedCode || ''; patch.onHand = n; }
+      if (!opts.scannedCode) { delete patch.upc; delete patch.caseUpc; }
+    } else {
+      patch.id = it.id;
+      ['upc', 'caseUpc'].forEach(k => { patch[k] = normCode(v(k)); });
+      patch.caseQty = v('caseQty');
+      if (isManager()) patch.onHand = v('onHand');
+    }
+    if (isManager()) { patch.cost = v('cost'); patch.posNames = v('posNames'); patch.poursPerUnit = v('poursPerUnit'); }
+    const saved = await saveItemRemote(patch);
+    btn.disabled = false;
+    if (saved && opts.onSaved) opts.onSaved(saved);
+  };
+}
+
+function editSheet(it, opts = {}) {
+  const sh = openSheet(isManager() ? 'Edit item' : 'Item details', '');
+  renderItemForm(sh.body, it, { onSaved: s => { sh.close(); toast('Saved ' + s.name); if (opts.onSaved) opts.onSaved(s); }, onDeleted: () => { sh.close(); sheets.slice().forEach(x => x.close()); } });
+}
+
+async function historySheet(it) {
+  const sh = openSheet('History · ' + it.name, '<div class="empty"><span class="spin"></span></div>');
+  try {
+    const r = await api('log', { itemId: it.id, limit: 50 });
+    if (!r.ok) throw new Error(r.error);
+    sh.body.innerHTML = logTable(r.entries, false);
+  } catch (e) { sh.body.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+function logTable(entries, showItem) {
+  if (!entries.length) return '<div class="empty">Nothing yet.</div>';
+  return `<table class="prev"><thead><tr><th>When</th>${showItem ? '<th>Item</th>' : ''}<th>What</th><th class="n">Chg</th><th class="n">After</th></tr></thead><tbody>
+    ${entries.map(e => `<tr><td>${esc(timeAgo(e.at))}<div class="small-note">${esc(e.user)}</div></td>${showItem ? `<td>${esc(e.name)}</td>` : ''}<td>${esc(e.action)}${e.note ? `<div class="small-note">${esc(e.note)}</div>` : ''}</td><td class="n">${esc(fmt(e.change))}</td><td class="n">${esc(fmt(e.onHand))}</td></tr>`).join('')}
+  </tbody></table>`;
+}
+
+function itemPicker(host, onPick, opts = {}) {
+  host.innerHTML = `<input class="t" type="search" placeholder="Search items" aria-label="Search items" style="margin-bottom:10px"><div class="list"></div>`;
+  const inp = $('input', host), list = $('.list', host);
+  const draw = () => {
+    const q = norm(inp.value);
+    let rows = S.items.filter(i => !q || norm(i.name).includes(q) || norm(i.category).includes(q));
+    rows.sort((a, b) => (opts.preferNoUpc ? (!!a.upc - !!b.upc) : 0) || a.name.localeCompare(b.name));
+    rows = rows.slice(0, 60);
+    list.innerHTML = rows.length ? rows.map(i => `<button class="li" type="button" data-id="${esc(i.id)}"><div class="grow"><div class="nm">${esc(i.name)}</div><div class="sub">${esc(i.category || '')}${opts.preferNoUpc && !i.upc ? ' · no barcode yet' : ''}</div></div><div class="qty"><b>${fmt(i.onHand)}</b></div></button>`).join('')
+      : '<div class="empty">No matching items.</div>';
+    $$('[data-id]', list).forEach(b => b.onclick = () => onPick(itemById(b.dataset.id)));
+  };
+  inp.oninput = draw;
+  draw();
+}
+function pickItemSheet(title, opts) {
+  return new Promise(res => {
+    let picked = null;
+    const sh = openSheet(title, '<div></div>', { onClose: () => res(picked) });
+    itemPicker(sh.body.firstChild, it => { picked = it; sh.close(); }, opts);
+  });
+}
+
+function renderRecent() {
+  const host = $('#recentList');
+  const rows = S.recent.slice(0, 10);
+  if (!rows.length) { host.innerHTML = '<div class="empty">Scan something to get started.</div>'; return; }
+  host.innerHTML = rows.map(r => {
+    const verb = r.mode === 'add' ? `+${fmt(r.qty)} received` : r.mode === 'remove' ? `−${fmt(r.qty)} removed` : `counted ${fmt(r.qty)}`;
+    const waiting = S.queue.some(o => o.opId === r.opId);
+    return `<div class="li"><div class="grow"><div class="nm">${esc(r.name)}</div><div class="sub">${verb} · ${esc(timeAgo(r.at))}${waiting ? ' · <span class="tag warn">waiting</span>' : ''}${r.undone ? ' · undone' : ''}</div></div>
+      <div class="qty"><b>${fmt(r.after)}</b><span> now</span></div>${r.undone ? '' : `<button class="btn small ghost" type="button" data-undo="${esc(r.opId)}">Undo</button>`}</div>`;
+  }).join('');
+  $$('[data-undo]', host).forEach(b => b.onclick = () => undoRecent(b.dataset.undo));
+}
+
+/* =========================================================== items view */
+function renderItems() {
+  const cats = ['All', 'Low', ...categories().filter(c => S.items.some(i => i.category === c))];
+  if (!cats.includes(S.cat)) S.cat = 'All';
+  $('#catChips').innerHTML = cats.map(c => `<button type="button" class="chip ${c === S.cat ? 'on' : ''}" data-cat="${esc(c)}">${esc(c === 'Low' ? 'Below par' : c)}</button>`).join('');
+  $$('#catChips [data-cat]').forEach(b => b.onclick = () => { S.cat = b.dataset.cat; renderItems(); });
+  const q = norm($('#itemSearch').value);
+  const rows = S.items
+    .filter(i => S.cat === 'All' || (S.cat === 'Low' ? isLow(i) : i.category === S.cat))
+    .filter(i => !q || norm(i.name).includes(q) || norm(i.upc).includes(q) || norm(i.posNames).includes(q))
+    .sort((a, b) => (a.category || '').localeCompare(b.category || '') || a.name.localeCompare(b.name));
+  $('#itemList').innerHTML = rows.length ? rows.map(i => `
+    <button class="li" type="button" data-id="${esc(i.id)}">
+      <div class="grow"><div class="nm">${esc(i.name)}</div><div class="sub">${esc(i.category || 'Uncategorized')}${i.upc || i.caseUpc ? '' : ' · no barcode'}</div></div>
+      ${isLow(i) ? '<span class="tag low">LOW</span>' : ''}
+      <div class="qty"><b>${fmt(i.onHand)}</b><span> / ${fmt(i.par)}</span></div>
+    </button>`).join('')
+    : `<div class="empty">${S.items.length ? 'No matches.' : 'No items yet. Scan a barcode, tap + Add, or import a spreadsheet from More.'}</div>`;
+  $$('#itemList [data-id]').forEach(b => b.onclick = () => itemSheet(itemById(b.dataset.id)));
+  const low = S.items.filter(isLow).length;
+  const value = S.items.reduce((s, i) => s + (num(i.onHand) || 0) * (num(i.cost) || 0), 0);
+  $('#itemsSummary').textContent = `${S.items.length} items · ${low} below par${value ? ' · stock value $' + value.toFixed(2) : ''}`;
+}
+$('#itemSearch').oninput = renderItems;
+$('#addItemBtn').onclick = () => {
+  const sh = openSheet('Add item', '');
+  renderItemForm(sh.body, { onHand: 0, unit: 'bottle', poursPerUnit: 1 }, { isNew: true, scannedCode: '', onSaved: it => { sh.close(); toast('Added ' + it.name); } });
+};
+
+/* =========================================================== count view */
+function renderCount() {
+  const c = S.count;
+  $('#countIdle').classList.toggle('hidden', !!c);
+  $('#countLive').classList.toggle('hidden', !c);
+  if (!c) return;
+  const ids = Object.keys(c.tally);
+  $('#countHead').textContent = `Counted · ${ids.length} item${ids.length === 1 ? '' : 's'}`;
+  $('#countList').innerHTML = ids.length ? ids.slice().reverse().map(id => {
+    const it = itemById(id); if (!it) return '';
+    return `<div class="li"><div class="grow"><div class="nm">${esc(it.name)}</div><div class="sub">sheet says ${fmt(it.onHand)}</div></div>
+      <button class="mini" type="button" data-dec="${esc(id)}" aria-label="Minus one">−</button>
+      <input class="count-n" type="number" inputmode="decimal" step="any" data-set="${esc(id)}" value="${esc(c.tally[id])}" aria-label="Count for ${esc(it.name)}" style="width:70px">
+      <button class="mini" type="button" data-inc="${esc(id)}" aria-label="Plus one">+</button></div>`;
+  }).join('') : '<div class="empty">Nothing counted yet.</div>';
+  $$('[data-inc]').forEach(b => b.onclick = () => bump(b.dataset.inc, 1));
+  $$('[data-dec]').forEach(b => b.onclick = () => bump(b.dataset.dec, -1));
+  $$('[data-set]').forEach(i => i.onchange = () => { const v = num(i.value); if (v === null) delete S.count.tally[i.dataset.set]; else S.count.tally[i.dataset.set] = Math.max(0, v); save(LS.count, S.count); renderCount(); });
+}
+function bump(id, n) {
+  S.count.tally[id] = Math.max(0, round2((S.count.tally[id] || 0) + n));
+  // re-insert so the most recent sits at the top
+  const v = S.count.tally[id]; delete S.count.tally[id]; S.count.tally[id] = v;
+  save(LS.count, S.count); renderCount();
+}
+function onCountCode(code) {
+  if (!S.count) return;
+  const hit = findByCode(code);
+  if (!hit) {
+    beep(false); Cam.pause();
+    unknownSheet(code, { onClose: () => { Cam.resume(); const h = findByCode(code); if (h) bump(h.item.id, h.mult); } });
+    return;
+  }
+  beep(true);
+  bump(hit.item.id, hit.mult);
+  const fl = $('#countFlash');
+  fl.textContent = `+${hit.mult}${hit.isCase ? ' (case)' : ''} ${hit.item.name} → ${fmt(S.count.tally[hit.item.id])}`;
+  fl.classList.add('on'); clearTimeout(fl._t); fl._t = setTimeout(() => fl.classList.remove('on'), 1400);
+}
+$('#startCount').onclick = () => { S.count = { started: new Date().toISOString(), tally: {} }; save(LS.count, S.count); renderCount(); Cam.start('count', onCountCode); };
+$('#countManual').onsubmit = e => { e.preventDefault(); const c = normCode($('#countCode').value); $('#countCode').value = ''; if (c) onCountCode(c); };
+$('#countPick').onclick = async () => {
+  const it = await pickItemSheet('Count an item');
+  if (!it) return;
+  if (!(it.id in S.count.tally)) S.count.tally[it.id] = 0;
+  bump(it.id, 0);
+  const inp = $(`[data-set="${CSS.escape(it.id)}"]`); if (inp) { inp.focus(); inp.select(); }
+};
+$('#countDiscard').onclick = () => {
+  if (Object.keys(S.count.tally).length && !confirm('Throw away this count?')) return;
+  Cam.stop(); S.count = null; save(LS.count, null); renderCount();
+};
+$('#countSave').onclick = () => {
+  const ids = Object.keys(S.count.tally);
+  if (!ids.length) return toast('Nothing counted yet', { bad: true });
+  const diffs = ids.map(id => ({ it: itemById(id), n: S.count.tally[id] })).filter(x => x.it);
+  const sh = openSheet('Save count?', `
+    <p class="hint">These counts will replace the on-hand numbers in the sheet.</p>
+    <table class="prev"><thead><tr><th>Item</th><th class="n">Sheet</th><th class="n">Counted</th><th class="n">Diff</th></tr></thead><tbody>
+    ${diffs.map(d => { const df = round2(d.n - (num(d.it.onHand) || 0)); return `<tr><td>${esc(d.it.name)}</td><td class="n">${fmt(d.it.onHand)}</td><td class="n"><b>${fmt(d.n)}</b></td><td class="n" style="color:${df < 0 ? 'var(--accent)' : df > 0 ? 'var(--ok)' : 'inherit'}">${df > 0 ? '+' : ''}${fmt(df)}</td></tr>`; }).join('')}
+    </tbody></table>
+    <button class="btn good block" type="button" id="doSave" style="margin-top:14px">Save ${diffs.length} counts</button>`);
+  $('#doSave', sh.body).onclick = () => {
+    diffs.forEach(d => stockChange(d.it, 'set', d.n, 'Count'));
+    Cam.stop(); S.count = null; save(LS.count, null);
+    sh.close(); renderCount();
+    toast(`Count saved · ${diffs.length} items`);
+  };
+};
+
+/* =========================================================== order view */
+function orderRows() {
+  return S.items.filter(isLow).sort((a, b) => (a.category || '').localeCompare(b.category || '') || a.name.localeCompare(b.name));
+}
+function renderOrder() {
+  const rows = orderRows();
+  const b = $('#orderBadge');
+  b.textContent = rows.length; b.classList.toggle('hidden', !rows.length);
+  if (!rows.length) { $('#orderBody').innerHTML = `<div class="list"><div class="empty">${S.items.some(i => num(i.par) !== null) ? 'Everything is at or above par. 👍' : 'Set a par on items to build an order list.'}</div></div>`; return; }
+  const groups = {};
+  rows.forEach(r => { (groups[r.category || 'Other'] = groups[r.category || 'Other'] || []).push(r); });
+  $('#orderBody').innerHTML = Object.entries(groups).map(([g, list]) => `
+    <h3>${esc(g)}</h3><div class="list">${list.map(i => `
+      <button class="li" type="button" data-id="${esc(i.id)}"><div class="grow"><div class="nm">${esc(i.name)}</div><div class="sub">have ${fmt(i.onHand)} · par ${fmt(i.par)}</div></div>
+      <div class="qty"><span>order </span><b>${fmt(Math.ceil(toOrder(i)))}</b></div></button>`).join('')}</div>`).join('');
+  $$('#orderBody [data-id]').forEach(x => x.onclick = () => itemSheet(itemById(x.dataset.id)));
+}
+$('#orderShare').onclick = async () => {
+  const rows = orderRows();
+  if (!rows.length) return toast('Nothing to order');
+  const text = 'VFW Post 9509 order list (' + new Date().toLocaleDateString() + ')\n' + rows.map(i => `${Math.ceil(toOrder(i))} × ${i.name}`).join('\n');
+  try {
+    if (navigator.share) await navigator.share({ text });
+    else { await navigator.clipboard.writeText(text); toast('Copied to clipboard'); }
+  } catch (e) { if (e.name !== 'AbortError') { try { await navigator.clipboard.writeText(text); toast('Copied to clipboard'); } catch (e2) { toast('Could not share', { bad: true }); } } }
+};
+
+/* =========================================================== spreadsheets */
+async function readSheetFile(file) {
+  await loadScript(LIB_XLSX);
+  const wb = window.XLSX.read(await file.arrayBuffer(), { type: 'array' });
+  return wb.SheetNames.map(name => ({ name, rows: window.XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '', raw: true }) }));
+}
+// Find the header row and turn the rest into objects keyed by lower-cased header.
+function tableFrom(rows, mustHave) {
+  for (let h = 0; h < Math.min(rows.length, 15); h++) {
+    const hdr = rows[h].map(c => norm(c));
+    if (mustHave.some(k => hdr.includes(k))) {
+      return rows.slice(h + 1).map(r => { const o = {}; hdr.forEach((k, i) => { if (k) o[k] = r[i]; }); return o; });
+    }
+  }
+  return null;
+}
+const pick = (o, keys) => { for (const k of keys) if (o[k] !== undefined && o[k] !== '') return o[k]; return ''; };
+
+function download(name, text, type) {
+  const blob = new Blob([text], { type });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+const csvCell = v => { const s = String(v === undefined || v === null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+
+async function exportExcel(rows, name, sheet) {
+  try {
+    await loadScript(LIB_XLSX);
+    const ws = window.XLSX.utils.json_to_sheet(rows);
+    const wb = window.XLSX.utils.book_new(); window.XLSX.utils.book_append_sheet(wb, ws, sheet);
+    window.XLSX.writeFile(wb, name);
+  } catch (e) { toast(e.message, { bad: true }); }
+}
+const stamp = () => new Date().toISOString().slice(0, 10);
+$('#exportExcel').onclick = () => exportExcel(S.items.map(i => ({
+  Name: i.name, Category: i.category, Unit: i.unit, 'On Hand': num(i.onHand), Par: num(i.par), 'To Order': toOrder(i),
+  Cost: num(i.cost), Value: round2((num(i.onHand) || 0) * (num(i.cost) || 0)), UPC: i.upc, 'Case UPC': i.caseUpc, 'Case Qty': num(i.caseQty),
+  'POS Names': i.posNames, 'Last Counted': i.lastCounted ? new Date(i.lastCounted).toLocaleDateString() : ''
+})), `Post9509_Inventory_${stamp()}.xlsx`, 'Inventory');
+$('#orderExcel').onclick = () => exportExcel(orderRows().map(i => ({ Category: i.category, Item: i.name, 'On Hand': num(i.onHand), Par: num(i.par), Order: Math.ceil(toOrder(i)) })), `Post9509_Order_${stamp()}.xlsx`, 'Order');
+
+$('#skytabExport').onclick = () => {
+  const lines = [['Item Name', 'Item UPC', 'Cost']];
+  S.items.forEach(i => {
+    const names = splitPos(i.posNames);
+    // Only items sold whole carry their UPC onto the SkyTab button; shots/pints don't have one.
+    const upc = (num(i.poursPerUnit) || 1) === 1 ? i.upc : '';
+    const unitCost = num(i.cost) !== null ? round2(num(i.cost) / (num(i.poursPerUnit) || 1)) : '';
+    (names.length ? names : [i.name]).forEach(n => { if (upc || unitCost !== '') lines.push([n, upc, unitCost]); });
+  });
+  if (lines.length === 1) return toast('Add UPCs or costs to items first', { bad: true });
+  download(`Post9509_SkyTab_UPC_${stamp()}.csv`, lines.map(r => r.map(csvCell).join(',')).join('\r\n'), 'text/csv');
+};
+function splitPos(s) { return String(s || '').split(/[,\n;]/).map(x => x.trim()).filter(Boolean); }
+
+/* ---------------------------------------- SkyTab sales import */
+$('#salesFile').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  if (!isManager()) return toast('Importing sales needs the manager PIN', { bad: true });
+  let sheetsIn;
+  try { sheetsIn = await readSheetFile(f); } catch (err) { return toast(err.message, { bad: true }); }
+  let sales = null;
+  for (const s of sheetsIn) { sales = tableFrom(s.rows, ['item', 'item name', 'menu item']); if (sales) break; }
+  if (!sales) return toast("Couldn't find an Item column. Use SkyTab's Sales Summary by Item report.", { bad: true, ms: 6000 });
+  const agg = {};
+  sales.forEach(r => {
+    const name = String(pick(r, ['item', 'item name', 'menu item', 'name'])).trim();
+    const qty = num(pick(r, ['qty', 'quantity', 'item qty', 'sold', 'count']));
+    if (!name || !qty || qty <= 0 || /^(grand )?total/i.test(name)) return;
+    agg[name] = (agg[name] || 0) + qty;
+  });
+  salesPreview(f.name, agg);
+};
+
+function salesPreview(fileName, agg) {
+  const build = () => {
+    const index = {};
+    S.items.forEach(it => {
+      const names = splitPos(it.posNames);
+      (names.length ? names : [it.name]).forEach(n => { (index[norm(n)] = index[norm(n)] || []).push(it); });
+    });
+    const matched = [], unmatched = [];
+    Object.entries(agg).sort((a, b) => a[0].localeCompare(b[0])).forEach(([pos, qty]) => {
+      const its = index[norm(pos)];
+      if (its) its.forEach(it => matched.push({ pos, qty, it, units: round2(qty / (num(it.poursPerUnit) || 1)) }));
+      else unmatched.push({ pos, qty });
+    });
+    return { matched, unmatched };
+  };
+  const sh = openSheet('SkyTab sales import', '');
+  const draw = () => {
+    const { matched, unmatched } = build();
+    const totalSold = Object.values(agg).reduce((a, b) => a + b, 0);
+    const neverCounted = new Set(matched.filter(m => !m.it.lastCounted).map(m => m.it.id)).size;
+    sh.body.innerHTML = `
+      <div class="banner info"><b>${esc(fileName)}</b><br>${Object.keys(agg).length} SkyTab items, ${fmt(totalSold)} sold</div>
+      ${neverCounted ? `<div class="banner warn">${neverCounted} of these items have never been counted. Do a full count first (Count tab), then only import sales from after that count, or on-hand numbers will go negative.</div>` : ''}
+      <h3>Will be taken off inventory (${matched.length})</h3>
+      ${matched.length ? `<table class="prev"><thead><tr><th>SkyTab item</th><th class="n">Sold</th><th>Inventory item</th><th class="n">−</th></tr></thead><tbody>
+        ${matched.map(m => `<tr><td>${esc(m.pos)}</td><td class="n">${fmt(m.qty)}</td><td>${esc(m.it.name)}${num(m.it.poursPerUnit) > 1 ? `<div class="small-note">${fmt(m.it.poursPerUnit)} per ${esc(m.it.unit || 'unit')}</div>` : ''}</td><td class="n"><b>${fmt(m.units)}</b></td></tr>`).join('')}
+      </tbody></table>` : '<div class="banner warn">Nothing matched yet. Link SkyTab items below, or fill in "SkyTab item names" on your inventory items.</div>'}
+      <details style="margin-top:12px" ${matched.length ? '' : 'open'}><summary>Not linked to inventory (${unmatched.length})</summary>
+        <p class="hint">Food, mixed drinks, and other things you don't track can stay here. Tap Link to connect one to an inventory item, and it will be remembered next time.</p>
+        <div class="list">${unmatched.map(u => `<div class="li"><div class="grow"><div class="nm">${esc(u.pos)}</div><div class="sub">${fmt(u.qty)} sold</div></div><button class="btn small" type="button" data-link="${esc(u.pos)}">Link</button></div>`).join('') || '<div class="empty">Everything matched.</div>'}</div>
+      </details>
+      <button class="btn primary block" type="button" id="applySales" style="margin-top:14px" ${matched.length ? '' : 'disabled'}>Take ${matched.length} items off inventory</button>
+      <p class="small-note">Import each report once. Pick SkyTab dates that start the day after your last import.</p>`;
+    $$('[data-link]', sh.body).forEach(b => b.onclick = async () => {
+      const pos = b.dataset.link;
+      const it = await pickItemSheet(`Which inventory item does "${pos}" use?`);
+      if (!it) return;
+      const names = splitPos(it.posNames);
+      if (!names.length) names.push(it.name);
+      names.push(pos);
+      const saved = await saveItemRemote({ id: it.id, posNames: [...new Set(names)].join(', ') });
+      if (saved) draw();
+    });
+    const apply = $('#applySales', sh.body);
+    apply.onclick = () => applySales(matched, fileName, Object.keys(agg).length + ':' + totalSold, apply, sh);
+  };
+  draw();
+}
+
+async function applySales(matched, fileName, sig, btn, sh, force) {
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Saving…';
+  const ops = matched.map(m => ({ opId: uid(), id: m.it.id, mode: 'remove', qty: m.units, note: `SkyTab: ${m.pos} ×${fmt(m.qty)} (${fileName})`, source: 'sales' }));
+  try {
+    await flush();
+    const r = await api('batch', { ops, importKey: fileName + '|' + sig, force: !!force });
+    if (!r.ok && r.code === 'duplicate_import') {
+      btn.disabled = false; btn.textContent = 'Take items off inventory';
+      if (confirm(r.error + '.\n\nImport it again anyway? (This would subtract the same sales twice.)')) return applySales(matched, fileName, sig, btn, sh, true);
+      return;
+    }
+    if (!r.ok) throw new Error(r.error);
+    (r.items || []).forEach(upsertLocal);
+    renderAll(); sh.close();
+    toast(`Sales imported · ${ops.length} items updated`);
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Try again';
+    toast(e instanceof NetError ? 'No connection — try again with signal' : e.message, { bad: true, ms: 6000 });
+  }
+}
+
+/* ---------------------------------------- item import */
+$('#itemsFile').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  if (!isManager()) return toast('Importing items needs the manager PIN', { bad: true });
+  let sheetsIn;
+  try { sheetsIn = await readSheetFile(f); } catch (err) { return toast(err.message, { bad: true }); }
+  const have = new Set(S.items.map(i => norm(i.name)));
+  const found = [];
+  sheetsIn.forEach(s => {
+    const t = tableFrom(s.rows, ['item name', 'name', 'product', 'item']);
+    if (!t) return;
+    t.forEach(r => {
+      const name = String(pick(r, ['name', 'item name', 'product', 'item'])).trim();
+      if (!name) return;
+      const rest = Object.entries(r).filter(([k, v]) => v !== '' && !['name', 'item name', 'product', 'item'].includes(k));
+      if (!rest.length && name === name.toUpperCase()) return; // section headings like "LIQUOR"
+      const status = String(pick(r, ['status'])).toLowerCase();
+      if (status && status !== 'active') return;
+      const isMenu = 'department' in r && 'item price' in r;
+      found.push({
+        name,
+        category: String(pick(r, ['category', 'department']) || (sheetsIn.length > 1 ? s.name : '')).trim(),
+        unit: String(pick(r, ['unit', 'counted as']) || 'each').trim(),
+        upc: normCode(pick(r, ['upc', 'item upc', 'barcode'])),
+        caseUpc: normCode(pick(r, ['case upc'])),
+        caseQty: num(pick(r, ['case qty', 'units per case'])) ?? '',
+        par: num(pick(r, ['par'])) ?? '',
+        onHand: num(pick(r, ['on hand', 'count', 'qty on hand'])) ?? 0,
+        cost: num(pick(r, ['cost'])) || '',
+        posNames: String(pick(r, ['pos names', 'skytab names', 'pos name']) || (isMenu ? name : '')).trim(),
+        poursPerUnit: num(pick(r, ['pours per unit', 'sales per unit'])) || 1,
+        dup: have.has(norm(name))
+      });
+    });
+  });
+  if (!found.length) return toast("Couldn't find a Name / Item Name column in that file", { bad: true, ms: 6000 });
+  itemsImportPreview(f.name, found);
+};
+
+function itemsImportPreview(fileName, found) {
+  const cats = [...new Set(found.map(f => f.category || 'Uncategorized'))];
+  const on = new Set(cats.filter(c => !/food|night|open items|non-sales|misc/i.test(c)));
+  const sh = openSheet('Import items', '');
+  const draw = () => {
+    const rows = found.filter(f => on.has(f.category || 'Uncategorized') && !f.dup);
+    sh.body.innerHTML = `
+      <div class="banner info"><b>${esc(fileName)}</b> · ${found.length} rows${found.some(f => f.dup) ? ` · ${found.filter(f => f.dup).length} already in inventory (skipped)` : ''}</div>
+      <p class="hint">Pick the categories to bring in. Food specials and other things you don't count are unticked to start with.</p>
+      <div class="chips" style="flex-wrap:wrap">${cats.map(c => `<button type="button" class="chip ${on.has(c) ? 'on' : ''}" data-c="${esc(c)}">${esc(c)} (${found.filter(f => (f.category || 'Uncategorized') === c && !f.dup).length})</button>`).join('')}</div>
+      <div class="list" style="max-height:38vh;overflow:auto">${rows.slice(0, 300).map(f => `<div class="li"><div class="grow"><div class="nm">${esc(f.name)}</div><div class="sub">${esc(f.category)}${f.upc ? ' · UPC ' + esc(f.upc) : ''}${f.par !== '' ? ' · par ' + fmt(f.par) : ''}</div></div><div class="qty"><b>${fmt(f.onHand)}</b></div></div>`).join('') || '<div class="empty">Nothing selected.</div>'}</div>
+      <button class="btn primary block" type="button" id="doImport" style="margin-top:14px" ${rows.length ? '' : 'disabled'}>Add ${rows.length} items</button>`;
+    $$('[data-c]', sh.body).forEach(b => b.onclick = () => { const c = b.dataset.c; on.has(c) ? on.delete(c) : on.add(c); draw(); });
+    $('#doImport', sh.body).onclick = async ev => {
+      const btn = ev.currentTarget; btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Adding…';
+      try {
+        let made = 0;
+        for (let i = 0; i < rows.length; i += 150) {
+          const chunk = rows.slice(i, i + 150).map(({ dup, ...rest }) => rest);
+          const r = await api('importItems', { items: chunk });
+          if (!r.ok) throw new Error(r.error);
+          r.items.forEach(upsertLocal); made += r.created;
+        }
+        renderAll(); sh.close();
+        toast(`Added ${made} items`);
+      } catch (e) {
+        btn.disabled = false; btn.textContent = 'Try again';
+        toast(e instanceof NetError ? 'No connection' : e.message, { bad: true, ms: 6000 });
+      }
+    };
+  };
+  draw();
+}
+
+$('#showLog').onclick = async () => {
+  const sh = openSheet('Recent activity', '<div class="empty"><span class="spin"></span></div>');
+  try {
+    const r = await api('log', { limit: 100 });
+    if (!r.ok) throw new Error(r.error);
+    sh.body.innerHTML = logTable(r.entries, true);
+  } catch (e) { sh.body.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+};
+
+/* =========================================================== settings */
+function renderConn() {
+  const c = S.cfg;
+  const status = !c.api && !c.demo ? '<span class="tag low">NOT SET UP</span>'
+    : isDemo() ? '<span class="tag warn">DEMO MODE</span>'
+    : S.role ? `<span class="tag ok">CONNECTED · ${S.role === 'manager' ? 'MANAGER' : 'STAFF'}</span>` : '<span class="tag warn">NOT VERIFIED</span>';
+  $('#connCard').innerHTML = `
+    <div class="row"><b class="grow">Connection</b>${status}</div>
+    ${isDemo() ? '<div class="banner warn">Demo mode keeps data on this phone only. Paste the Google Sheet web app URL to go live.</div>' : ''}
+    <form id="cfgForm" class="stack" autocomplete="off">
+      <div><label class="f" for="cfgUser">Your name</label><input class="t" id="cfgUser" value="${esc(c.user)}" placeholder="Shows up in the log" autocomplete="name"></div>
+      <div><label class="f" for="cfgPin">PIN</label><input class="t" id="cfgPin" type="password" inputmode="numeric" value="${esc(c.pin)}" placeholder="Staff or manager PIN" autocomplete="off"></div>
+      <div><label class="f" for="cfgApi">Google Sheet web app URL</label><input class="t" id="cfgApi" value="${esc(c.api)}" placeholder="https://script.google.com/macros/s/…/exec" inputmode="url" autocapitalize="off" spellcheck="false"></div>
+      <button class="btn primary block" type="submit">Save &amp; connect</button>
+    </form>
+    <div class="grid2">
+      <button class="btn small" type="button" id="shareSetup" ${c.api ? '' : 'disabled'}>Share setup link</button>
+      <button class="btn small" type="button" id="demoToggle">${c.demo && !c.api ? 'Leave demo' : 'Try demo mode'}</button>
+    </div>
+    <p class="small-note">The setup link fills in the sheet URL for bartenders. It does not include the PIN; they type that themselves.</p>`;
+  $('#cfgForm').onsubmit = async e => {
+    e.preventDefault();
+    const api_ = $('#cfgApi').value.trim();
+    if (api_ && !/^https:\/\/script\.google(usercontent)?\.com\//.test(api_)) return toast('That URL should start with https://script.google.com/', { bad: true, ms: 5000 });
+    S.cfg = { api: api_, pin: $('#cfgPin').value.trim(), user: $('#cfgUser').value.trim(), demo: S.cfg.demo && !api_ };
+    save(LS.cfg, S.cfg);
+    S.role = null; S.error = null; S.lastPull = 0;
+    if (!S.cfg.user) toast('Add your name so the log shows who did what');
+    await pull(true);
+    renderConn();
+    if (S.role) showView('scan');
+  };
+  $('#shareSetup').onclick = async () => {
+    const link = location.href.split('#')[0] + '#setup=' + encodeURIComponent(S.cfg.api);
+    try { if (navigator.share) await navigator.share({ title: 'Post 9509 Inventory', url: link }); else { await navigator.clipboard.writeText(link); toast('Setup link copied'); } }
+    catch (e) { if (e.name !== 'AbortError') prompt('Copy this link:', link); }
+  };
+  $('#demoToggle').onclick = async () => {
+    if (S.cfg.api) {
+      if (!confirm('Disconnect from the Google Sheet and use demo mode on this phone?')) return;
+      S.cfg.api = ''; S.cfg.demo = true;
+    } else {
+      S.cfg.api = S.cfg.demo ? DEFAULT_API : ''; S.cfg.demo = !S.cfg.demo;
+    }
+    save(LS.cfg, S.cfg);
+    S.role = null; S.items = []; S.queue = []; save(LS.queue, []); S.lastPull = 0;
+    await pull(true); renderConn();
+  };
+}
+
+/* =========================================================== nav & boot */
+function showView(v) {
+  if (S.view !== v && (S.view === 'scan' || S.view === 'count')) Cam.stop();
+  S.view = v;
+  $$('.view').forEach(el => el.classList.toggle('on', el.id === 'v-' + v));
+  $$('nav.tabs [data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === v));
+  window.scrollTo(0, 0);
+  renderAll();
+  if (v === 'items' || v === 'order') pull(false);
+}
+$$('nav.tabs [data-view]').forEach(b => b.onclick = () => showView(b.dataset.view));
+
+function renderAll() {
+  renderRecent(); renderOrder();
+  if (S.view === 'items') renderItems();
+  if (S.view === 'count') renderCount();
+  if (S.view === 'more') renderConn();
+}
+
+(function boot() {
+  const m = location.hash.match(/setup=([^&]+)/);
+  if (m) {
+    S.cfg.api = decodeURIComponent(m[1]); S.cfg.demo = false; save(LS.cfg, S.cfg);
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+  renderPill(); renderAll();
+  if (!S.cfg.api && !S.cfg.demo) { showView('more'); toast('Welcome! Connect to the sheet, or try demo mode first.', { ms: 5000 }); }
+  else if (!S.cfg.pin && !isDemo()) { showView('more'); toast('Enter your name and PIN to start'); }
+  else pull(true, true).then(() => flush());
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+})();
+</script>
+</body>
+</html>
