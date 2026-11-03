@@ -605,8 +605,9 @@ function flush() {
       const r = await api('batch', { ops: batch });
       if (!r.ok) {
         S.error = r.error;
-        if (r.code !== 'pin') {
-          // A server-side rejection of the whole batch: drop it so the queue can't jam.
+        // Wrong PIN, sheet busy or a Google hiccup: keep the changes on the phone and retry later.
+        if (!['pin', 'busy', 'server'].includes(r.code)) {
+          // The sheet refused the whole batch for good (e.g. too big): drop it so the queue can't jam.
           toast('Sheet refused changes: ' + r.error, { bad: true, ms: 6000 });
           S.queue = S.queue.slice(batch.length);
         }
