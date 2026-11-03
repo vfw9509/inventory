@@ -1,6 +1,7 @@
 {
   "name": "VFW Post 9509 Inventory",
   "short_name": "Inventory",
+  "id": "/inventory/",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
