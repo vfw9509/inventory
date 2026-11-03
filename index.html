@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Post 9509 Inventory</title>
+<title>Bar Inventory</title>
 <meta name="theme-color" content="#14284b">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Inventory">
@@ -168,7 +168,7 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 </head>
 <body>
 <header class="top">
-  <h1>Post 9509 Inventory</h1>
+  <h1 id="appTitle">Bar Inventory</h1>
   <button class="pill" id="syncPill" type="button" aria-label="Sync status"><i></i><span>Starting…</span></button>
   <button class="iconbtn" id="refreshBtn" type="button" aria-label="Refresh from sheet">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg>
@@ -262,22 +262,28 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
   <section class="view" id="v-more">
     <div class="card stack" id="connCard"></div>
 
-    <h3>SkyTab (Shift4)</h3>
+    <div data-skytab>
+      <h3>SkyTab (Shift4)</h3>
+      <div class="card stack">
+        <div>
+          <b>Take sales off inventory</b>
+          <p class="hint" style="margin:4px 0 10px">In SkyTab, go to Reports → <i>Sales Summary by Item</i>, pick the dates since your last import, and export to Excel. Then load the file here.</p>
+          <label class="btn primary block">Import a SkyTab sales report<input type="file" id="salesFile" class="hidden" accept=".xls,.xlsx,.csv"></label>
+        </div>
+        <div>
+          <b>Send barcodes to SkyTab</b>
+          <p class="hint" style="margin:4px 0 10px">Downloads a CSV of SkyTab item names with their UPCs and costs, to update menu items in SkyTab.</p>
+          <button class="btn block" type="button" id="skytabExport">Download SkyTab UPC file</button>
+        </div>
+      </div>
+    </div>
+
+    <h3>Items</h3>
     <div class="card stack">
       <div>
-        <b>Take sales off inventory</b>
-        <p class="hint" style="margin:4px 0 10px">In SkyTab, go to Reports → <i>Sales Summary by Item</i>, pick the dates since your last import, and export to Excel. Then load the file here.</p>
-        <label class="btn primary block">Import a SkyTab sales report<input type="file" id="salesFile" class="hidden" accept=".xls,.xlsx,.csv"></label>
-      </div>
-      <div>
         <b>Add items from a spreadsheet</b>
-        <p class="hint" style="margin:4px 0 10px">Works with SkyTab's <i>Menu Item Detail</i> export, the Post 9509 starter list, or any sheet with a Name column.</p>
+        <p class="hint" style="margin:4px 0 10px">Works with the starter list, <span data-skytab>SkyTab's <i>Menu Item Detail</i> export, </span>or any spreadsheet with a Name column.</p>
         <label class="btn block">Import items<input type="file" id="itemsFile" class="hidden" accept=".xls,.xlsx,.csv"></label>
-      </div>
-      <div>
-        <b>Send barcodes to SkyTab</b>
-        <p class="hint" style="margin:4px 0 10px">Downloads a CSV of SkyTab item names with their UPCs and costs, to update menu items in SkyTab.</p>
-        <button class="btn block" type="button" id="skytabExport">Download SkyTab UPC file</button>
       </div>
     </div>
 
@@ -286,7 +292,7 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
       <button class="btn block" type="button" id="exportExcel">Download inventory (Excel)</button>
       <button class="btn block" type="button" id="showLog">Recent activity</button>
     </div>
-    <p class="hint" style="text-align:center">VFW Post 9509 · Inventory scanner v1.0</p>
+    <p class="hint" style="text-align:center"><span id="footName"></span> · Inventory scanner v1.1<br><a href="https://vfw9509.github.io/inventory/setup.html" style="color:inherit">Set this up for another Post</a></p>
   </section>
 </main>
 
@@ -302,8 +308,15 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 <script>
 'use strict';
 /* =========================================================== config */
-// The Post's Google Sheet web app. Phones use this unless someone pastes a different URL in More → Connection.
-const DEFAULT_API = 'https://script.google.com/macros/s/AKfycbwxZFDEI2dzFi2BTIvmjXhLRYFiwXNPjCo2iKSoOcWz0j350js0atA2LYU-hgTuYutqig/exec';
+// Per-Post settings. setup.html rewrites everything between the CONFIG markers for each Post.
+/*CONFIG*/const POST = {
+  number: '9509',
+  name: 'VFW Post 9509',
+  api: 'https://script.google.com/macros/s/AKfycbwxZFDEI2dzFi2BTIvmjXhLRYFiwXNPjCo2iKSoOcWz0j350js0atA2LYU-hgTuYutqig/exec',
+  skytab: true
+};/*END CONFIG*/
+const DEFAULT_API = POST.api;
+const FILE_TAG = 'Post' + String(POST.number).replace(/\W/g, '');
 const LIB_SCANNER ='https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
 const LIB_XLSX = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
 const DEFAULT_CATEGORIES = ['Liquor', 'Wine', 'Bottle Beer', 'Can Beer', 'Draft Beer', 'N/A Bev', 'Mixers', 'Bar Food', 'Supplies'];
@@ -904,14 +917,14 @@ function renderItemForm(host, it, opts) {
       </div>
       <div class="field" style="margin-top:12px"><label class="f">Units per case</label><input class="t" name="caseQty" type="number" inputmode="numeric" value="${esc(it.caseQty ?? '')}" ${mgr ? '' : 'readonly'}></div>`}
       ${isManager() ? `
-      <details style="margin-top:12px" ${opts.isNew ? '' : 'open'}><summary>SkyTab link &amp; cost</summary>
+      <details style="margin-top:12px" ${opts.isNew ? '' : 'open'}><summary>${POST.skytab ? 'SkyTab link &amp; cost' : 'Cost'}</summary>
         <div class="field"><label class="f">Cost per ${esc(it.unit || 'unit')} ($)</label><input class="t" name="cost" type="number" inputmode="decimal" step="0.01" value="${esc(it.cost ?? '')}"></div>
-        <div class="field"><label class="f">SkyTab item names that use this</label><textarea class="t" name="posNames" placeholder="Crown Royal, Crown & Coke">${esc(it.posNames || '')}</textarea>
+        ${POST.skytab ? `<div class="field"><label class="f">SkyTab item names that use this</label><textarea class="t" name="posNames" placeholder="Crown Royal, Crown & Coke">${esc(it.posNames || '')}</textarea>
           <div class="small-note">Comma-separated, spelled exactly like the SkyTab sales report. Leave blank to match the item name.</div></div>
         <div class="field"><label class="f">SkyTab sales per ${esc(it.unit || 'unit')}</label>
           <select class="t" name="pourPreset">${POUR_PRESETS.map(([l, v]) => `<option value="${v}" ${v === pours ? 'selected' : ''}>${esc(l)} (${v})</option>`).join('')}<option value="custom" ${POUR_PRESETS.some(p => p[1] === pours) ? '' : 'selected'}>Custom…</option></select>
           <input class="t ${POUR_PRESETS.some(p => p[1] === pours) ? 'hidden' : ''}" name="poursPerUnit" type="number" inputmode="decimal" step="any" value="${pours}" style="margin-top:8px">
-          <div class="small-note">How many SkyTab sales use up one ${esc(it.unit || 'unit')}. A 750 mL bottle pours about 16 shots.</div></div>
+          <div class="small-note">How many SkyTab sales use up one ${esc(it.unit || 'unit')}. A 750 mL bottle pours about 16 shots.</div></div>` : ''}
       </details>` : ''}
       ${mgr ? `<button class="btn primary block" type="submit" style="margin-top:14px">${opts.isNew ? 'Add item' : 'Save changes'}</button>` : '<p class="hint">Ask a manager to change item details.</p>'}
       ${!opts.isNew && isManager() ? '<button class="btn ghost block" type="button" data-del style="margin-top:8px;color:var(--accent)">Delete item</button>' : ''}
@@ -959,7 +972,10 @@ function renderItemForm(host, it, opts) {
       patch.caseQty = v('caseQty');
       if (isManager()) patch.onHand = v('onHand');
     }
-    if (isManager()) { patch.cost = v('cost'); patch.posNames = v('posNames'); patch.poursPerUnit = v('poursPerUnit'); }
+    if (isManager()) {
+      patch.cost = v('cost');
+      if (POST.skytab) { patch.posNames = v('posNames'); patch.poursPerUnit = v('poursPerUnit'); }
+    }
     const saved = await saveItemRemote(patch);
     btn.disabled = false;
     if (saved && opts.onSaved) opts.onSaved(saved);
@@ -1141,7 +1157,7 @@ function renderOrder() {
 $('#orderShare').onclick = async () => {
   const rows = orderRows();
   if (!rows.length) return toast('Nothing to order');
-  const text = 'VFW Post 9509 order list (' + new Date().toLocaleDateString() + ')\n' + rows.map(i => `${Math.ceil(toOrder(i))} × ${i.name}`).join('\n');
+  const text = POST.name + ' order list (' + new Date().toLocaleDateString() + ')\n' + rows.map(i => `${Math.ceil(toOrder(i))} × ${i.name}`).join('\n');
   try {
     if (navigator.share) await navigator.share({ text });
     else { await navigator.clipboard.writeText(text); toast('Copied to clipboard'); }
@@ -1187,8 +1203,8 @@ $('#exportExcel').onclick = () => exportExcel(S.items.map(i => ({
   Name: i.name, Category: i.category, Unit: i.unit, 'On Hand': num(i.onHand), Par: num(i.par), 'To Order': toOrder(i),
   Cost: num(i.cost), Value: round2((num(i.onHand) || 0) * (num(i.cost) || 0)), UPC: i.upc, 'Case UPC': i.caseUpc, 'Case Qty': num(i.caseQty),
   'POS Names': i.posNames, 'Last Counted': i.lastCounted ? new Date(i.lastCounted).toLocaleDateString() : ''
-})), `Post9509_Inventory_${stamp()}.xlsx`, 'Inventory');
-$('#orderExcel').onclick = () => exportExcel(orderRows().map(i => ({ Category: i.category, Item: i.name, 'On Hand': num(i.onHand), Par: num(i.par), Order: Math.ceil(toOrder(i)) })), `Post9509_Order_${stamp()}.xlsx`, 'Order');
+})), `${FILE_TAG}_Inventory_${stamp()}.xlsx`, 'Inventory');
+$('#orderExcel').onclick = () => exportExcel(orderRows().map(i => ({ Category: i.category, Item: i.name, 'On Hand': num(i.onHand), Par: num(i.par), Order: Math.ceil(toOrder(i)) })), `${FILE_TAG}_Order_${stamp()}.xlsx`, 'Order');
 
 $('#skytabExport').onclick = () => {
   const lines = [['Item Name', 'Item UPC', 'Cost']];
@@ -1200,7 +1216,7 @@ $('#skytabExport').onclick = () => {
     (names.length ? names : [i.name]).forEach(n => { if (upc || unitCost !== '') lines.push([n, upc, unitCost]); });
   });
   if (lines.length === 1) return toast('Add UPCs or costs to items first', { bad: true });
-  download(`Post9509_SkyTab_UPC_${stamp()}.csv`, lines.map(r => r.map(csvCell).join(',')).join('\r\n'), 'text/csv');
+  download(`${FILE_TAG}_SkyTab_UPC_${stamp()}.csv`, lines.map(r => r.map(csvCell).join(',')).join('\r\n'), 'text/csv');
 };
 function splitPos(s) { return String(s || '').split(/[,\n;]/).map(x => x.trim()).filter(Boolean); }
 
@@ -1411,7 +1427,7 @@ function renderConn() {
   };
   $('#shareSetup').onclick = async () => {
     const link = location.href.split('#')[0] + '#setup=' + encodeURIComponent(S.cfg.api);
-    try { if (navigator.share) await navigator.share({ title: 'Post 9509 Inventory', url: link }); else { await navigator.clipboard.writeText(link); toast('Setup link copied'); } }
+    try { if (navigator.share) await navigator.share({ title: POST.name + ' Inventory', url: link }); else { await navigator.clipboard.writeText(link); toast('Setup link copied'); } }
     catch (e) { if (e.name !== 'AbortError') prompt('Copy this link:', link); }
   };
   $('#demoToggle').onclick = async () => {
@@ -1447,6 +1463,10 @@ function renderAll() {
 }
 
 (function boot() {
+  document.title = POST.name + ' Inventory';
+  $('#appTitle').textContent = POST.name.replace(/^VFW\s+/i, '') + ' Inventory';
+  $('#footName').textContent = POST.name;
+  if (!POST.skytab) $$('[data-skytab]').forEach(el => el.remove());
   const m = location.hash.match(/setup=([^&]+)/);
   if (m) {
     S.cfg.api = decodeURIComponent(m[1]); S.cfg.demo = false; save(LS.cfg, S.cfg);

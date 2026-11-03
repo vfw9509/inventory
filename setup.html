@@ -1,0 +1,765 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Bar Inventory Setup</title>
+<meta name="description" content="Step-by-step setup of the free bar inventory scanner for your VFW Post.">
+<link rel="icon" href="icon-192.png">
+<style>
+:root {
+  --bg: #f3f4f7; --surface: #ffffff; --surface-2: #eef0f4; --text: #141a24; --muted: #566072;
+  --line: #dde1e8; --brand: #14284b; --brand-ink: #ffffff; --accent: #b3121f; --accent-soft: #fde5e6;
+  --ok: #19794a; --ok-soft: #dff3e8; --warn: #8a4f00; --warn-soft: #fff1d6; --focus: #2f6fe4; --link: #1f55c4;
+  --shadow: 0 1px 2px rgba(16,24,40,.06), 0 4px 16px rgba(16,24,40,.06);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1017; --surface: #171b24; --surface-2: #212734; --text: #e9ecf2; --muted: #a2abbb;
+    --line: #2b3242; --brand: #1d3769; --accent: #ff6b76; --accent-soft: #3a1a1f;
+    --ok: #4fcf8d; --ok-soft: #15301f; --warn: #f2b14c; --warn-soft: #3a2a10; --focus: #6d9eff; --link: #8fb2ff;
+    --shadow: 0 1px 2px rgba(0,0,0,.4); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1017; --surface: #171b24; --surface-2: #212734; --text: #e9ecf2; --muted: #a2abbb;
+  --line: #2b3242; --brand: #1d3769; --accent: #ff6b76; --accent-soft: #3a1a1f;
+  --ok: #4fcf8d; --ok-soft: #15301f; --warn: #f2b14c; --warn-soft: #3a2a10; --focus: #6d9eff; --link: #8fb2ff;
+  --shadow: 0 1px 2px rgba(0,0,0,.4); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--text); font: 17px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+a { color: var(--link); }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+code, .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: .92em; background: var(--surface-2); padding: 1px 6px; border-radius: 5px; overflow-wrap: anywhere; }
+
+header.hero { background: var(--brand); color: var(--brand-ink); padding: 34px 16px 30px; }
+header.hero .in { max-width: 780px; margin: 0 auto; display: flex; gap: 18px; align-items: center; }
+header.hero img { width: 64px; height: 64px; border-radius: 14px; flex: none; }
+header.hero h1 { margin: 0; font-size: 28px; line-height: 1.2; }
+header.hero p { margin: 6px 0 0; opacity: .88; }
+
+.progress { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--line); }
+.progress .in { max-width: 780px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--muted); }
+.bar { flex: 1; height: 8px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: var(--ok); transition: width .3s; }
+
+main { max-width: 780px; margin: 0 auto; padding: 20px 16px 60px; }
+.intro { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; box-shadow: var(--shadow); margin-bottom: 18px; }
+.intro h2 { margin: 0 0 8px; font-size: 20px; }
+.intro ul { margin: 6px 0 0; padding-left: 22px; }
+
+.step { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); margin-bottom: 16px; overflow: hidden; }
+.step > summary { list-style: none; cursor: pointer; display: flex; gap: 14px; align-items: center; padding: 16px 20px; }
+.step > summary::-webkit-details-marker { display: none; }
+.num { width: 38px; height: 38px; border-radius: 50%; background: var(--brand); color: #fff; display: grid; place-items: center; font-weight: 700; flex: none; }
+.step.done .num { background: var(--ok); }
+.step.done .num span { display: none; }
+.step.done .num::after { content: "✓"; font-size: 20px; }
+.step > summary h2 { margin: 0; font-size: 19px; flex: 1; line-height: 1.3; }
+.step > summary .time { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.step .body { padding: 0 20px 20px 72px; }
+@media (max-width: 600px) { .step .body { padding: 0 16px 18px; } .step > summary { padding: 14px 16px; } }
+.step ol, .step ul { padding-left: 24px; margin: 8px 0; }
+.step li { margin: 6px 0; }
+.step li::marker { font-weight: 700; color: var(--muted); }
+b.ui { background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; font-weight: 650; white-space: nowrap; }
+
+.tip, .warn, .good, .bad { border-radius: 12px; padding: 12px 14px; margin: 12px 0; font-size: 16px; }
+.tip { background: var(--surface-2); }
+.tip::before { content: "💡 "; }
+.warn { background: var(--warn-soft); color: var(--warn); }
+.good { background: var(--ok-soft); color: var(--ok); font-weight: 600; }
+.bad { background: var(--accent-soft); color: var(--accent); }
+.see { border-left: 4px solid var(--ok); padding: 6px 12px; margin: 12px 0; color: var(--muted); }
+.see::before { content: "What you should see: "; font-weight: 700; color: var(--text); }
+
+figure.shot { margin: 14px 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface-2); }
+figure.shot img { display: block; width: 100%; height: auto; }
+figure.shot figcaption { font-size: 14px; color: var(--muted); padding: 8px 12px; }
+
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 12px 18px; font-weight: 650; min-height: 48px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; color: inherit; }
+.btn.primary { background: var(--brand); color: #fff; border-color: transparent; }
+.btn.big { font-size: 18px; padding: 14px 22px; }
+.btn:disabled { opacity: .5; cursor: default; }
+.btns { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0 4px; }
+.donebtn { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.donebtn label { display: flex; gap: 10px; align-items: center; font-weight: 650; cursor: pointer; }
+.donebtn input { width: 22px; height: 22px; accent-color: var(--ok); }
+
+.field { margin: 14px 0; }
+.field label.f { display: block; font-weight: 650; margin-bottom: 4px; }
+.field .help { font-size: 14px; color: var(--muted); margin-top: 4px; }
+input.t { width: 100%; max-width: 420px; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 11px 12px; min-height: 48px; }
+input.t.wide { max-width: 100%; }
+.choice { display: flex; gap: 12px; flex-wrap: wrap; }
+.choice label { flex: 1; min-width: 220px; border: 2px solid var(--line); border-radius: 12px; padding: 12px 14px; cursor: pointer; display: flex; gap: 10px; align-items: flex-start; }
+.choice label:has(input:checked) { border-color: var(--brand); background: var(--surface-2); }
+.choice input { margin-top: 5px; width: 18px; height: 18px; flex: none; }
+.choice small { display: block; color: var(--muted); font-size: 14px; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.pinwrap { display: flex; gap: 8px; max-width: 420px; }
+.pinwrap input { flex: 1; }
+.out { margin-top: 10px; }
+textarea.code { width: 100%; height: 160px; font: 12px/1.4 ui-monospace, Consolas, monospace; border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--surface-2); color: var(--text); }
+.icons { display: flex; gap: 12px; align-items: center; margin: 10px 0; }
+.icons img { width: 72px; height: 72px; border-radius: 16px; box-shadow: var(--shadow); }
+details.help-q { border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin: 10px 0; background: var(--surface); }
+details.help-q summary { cursor: pointer; font-weight: 650; }
+.hidden { display: none !important; }
+.spin { width: 16px; height: 16px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: sp .8s linear infinite; display: inline-block; vertical-align: -2px; }
+@keyframes sp { to { transform: rotate(360deg); } }
+footer { text-align: center; color: var(--muted); font-size: 14px; padding: 20px 16px 40px; }
+
+/* Staff card (printed) */
+#card { display: none; }
+@media print {
+  body > *:not(#card) { display: none !important; }
+  body { background: #fff; color: #000; }
+  #card { display: block !important; }
+}
+.card-sheet { width: 6.5in; margin: 0 auto; border: 3px solid #14284b; border-radius: 18px; padding: 28px; text-align: center; font-family: system-ui, Arial, sans-serif; color: #000; background: #fff; }
+.card-sheet h2 { margin: 0; font-size: 30px; color: #14284b; }
+.card-sheet .sub { font-size: 18px; margin: 6px 0 18px; }
+.card-sheet svg { width: 2.6in; height: 2.6in; }
+.card-sheet ol { text-align: left; font-size: 17px; max-width: 5in; margin: 16px auto 0; }
+.card-sheet .url { font-family: Consolas, monospace; font-size: 15px; margin-top: 8px; word-break: break-all; }
+.card-sheet .pin { margin-top: 14px; font-size: 20px; border-top: 2px dashed #999; padding-top: 12px; }
+#cardPreview .card-sheet { width: 100%; max-width: 6.5in; transform-origin: top left; }
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="in">
+    <img src="icon-192.png" alt="">
+    <div>
+      <h1>Bar Inventory Scanner: Setup</h1>
+      <p>Free for any VFW Post. Scan bottles with a phone. Counts go into a Google Sheet you own.</p>
+    </div>
+  </div>
+</header>
+<div class="progress"><div class="in"><span id="progTxt">0 of 11 steps done</span><div class="bar"><i id="progBar"></i></div><button class="btn" type="button" id="resetAll" style="min-height:34px;padding:4px 10px;font-size:13px">Start over</button></div></div>
+
+<main>
+  <section class="intro">
+    <h2>Before you start</h2>
+    <ul>
+      <li><b>Time:</b> about 45 minutes. You can stop and come back. This page remembers where you were.</li>
+      <li><b>Cost:</b> free. No credit card.</li>
+      <li><b>You need:</b> a <b>computer</b> (much easier than a phone for setup), a <b>Google account</b>, and your <b>phone</b> for the last steps.</li>
+      <li><b>Tip:</b> make a Gmail just for your Post (like <code>vfwpost1234@gmail.com</code>). Then the inventory doesn't disappear when one person leaves.</li>
+      <li><b>How it works:</b> your Post's data lives in <i>your</i> Google Sheet. Your app lives on <i>your</i> free GitHub page. Nobody else can see or change your numbers.</li>
+    </ul>
+  </section>
+
+  <!-- 1 -->
+  <details class="step" data-step="1" open>
+    <summary><div class="num"><span>1</span></div><h2>Tell us about your Post</h2><span class="time">2 min</span></summary>
+    <div class="body">
+      <p>This page uses these answers to build your files. They stay on this computer. Nothing is sent anywhere.</p>
+      <div class="field">
+        <label class="f" for="postNum">Post number</label>
+        <input class="t" id="postNum" inputmode="numeric" placeholder="1234" maxlength="6" autocomplete="off">
+      </div>
+      <div class="field">
+        <label class="f" for="postName">Name to show in the app</label>
+        <input class="t" id="postName" placeholder="VFW Post 1234" maxlength="40" autocomplete="off">
+        <div class="help">Leave it blank to use "VFW Post" and your number.</div>
+      </div>
+      <div class="field">
+        <span class="f" style="font-weight:650;display:block;margin-bottom:6px">Does your bar ring up drinks on a <b>Shift4 / SkyTab</b> register?</span>
+        <div class="choice" role="radiogroup">
+          <label><input type="radio" name="skytab" value="yes"><span><b>Yes, we use SkyTab</b><small>The app can read SkyTab's sales report and take sold drinks off your inventory for you.</small></span></label>
+          <label><input type="radio" name="skytab" value="no"><span><b>No / something else / not sure</b><small>You still get scanning, counts, deliveries and order lists. The SkyTab buttons are hidden.</small></span></label>
+        </div>
+      </div>
+      <div class="field">
+        <label class="f" for="staffPin">Staff PIN (for bartenders)</label>
+        <div class="pinwrap"><input class="t" id="staffPin" type="password" inputmode="numeric" maxlength="8" placeholder="4 to 8 numbers" autocomplete="off"><button class="btn" type="button" data-show="staffPin">Show</button></div>
+        <div class="help">Bartenders use this to scan, receive deliveries and count.</div>
+      </div>
+      <div class="field">
+        <label class="f" for="mgrPin">Manager PIN (for you)</label>
+        <div class="pinwrap"><input class="t" id="mgrPin" type="password" inputmode="numeric" maxlength="8" placeholder="4 to 8 numbers" autocomplete="off"><button class="btn" type="button" data-show="mgrPin">Show</button></div>
+        <div class="help">Lets you change pars and prices, delete items<span class="if-sky"> and load SkyTab sales</span>. Keep it secret. Don't use your Post number.</div>
+      </div>
+      <div class="warn">✏️ <b>Write both PINs down</b> and keep them somewhere safe. This page will forget them when you close it.</div>
+      <div id="s1msg" class="out"></div>
+      <div class="btns"><button class="btn primary big" type="button" id="save1">Save and go to step 2</button></div>
+    </div>
+  </details>
+
+  <!-- 2 -->
+  <details class="step" data-step="2">
+    <summary><div class="num"><span>2</span></div><h2>Make a new Google Sheet</h2><span class="time">2 min</span></summary>
+    <div class="body">
+      <ol>
+        <li>Sign in to the Google account you want to use (the Post's account if you made one).</li>
+        <li>Open <a href="https://sheets.new" target="_blank" rel="noopener"><b>sheets.new</b></a>. It opens a blank spreadsheet in a new tab.</li>
+        <li>Click the words <b class="ui">Untitled spreadsheet</b> at the top left.</li>
+        <li>Type <code class="post-sheet">Post Inventory</code> and press <b class="ui">Enter</b>.</li>
+      </ol>
+      <figure class="shot"><img src="img/02-rename-sheet.png" alt="A blank Google Sheet with the name box at the top left" loading="lazy"><figcaption>Click the name at the top left to rename it.</figcaption></figure>
+      <p class="see">A blank spreadsheet with your new name at the top.</p>
+      <div class="donebtn"><label><input type="checkbox" data-done="2"> I did this</label></div>
+    </div>
+  </details>
+
+  <!-- 3 -->
+  <details class="step" data-step="3">
+    <summary><div class="num"><span>3</span></div><h2>Add the inventory code to your sheet</h2><span class="time">5 min</span></summary>
+    <div class="body">
+      <ol>
+        <li>In your Google Sheet, click the menu <b class="ui">Extensions</b> → <b class="ui">Apps Script</b>. A code editor opens in a new tab.</li>
+      </ol>
+      <figure class="shot"><img src="img/03a-extensions-menu.png" alt="The Extensions menu in Google Sheets with Apps Script highlighted" loading="lazy"><figcaption>Extensions → Apps Script</figcaption></figure>
+      <ol start="2">
+        <li>Click inside the code box. Press <b class="ui">Ctrl</b>+<b class="ui">A</b> (Mac: <b class="ui">⌘</b>+<b class="ui">A</b>) to select everything, then press <b class="ui">Delete</b>. The box is now empty.</li>
+        <li>Come back to this page and click this button:</li>
+      </ol>
+      <div class="btns"><button class="btn primary big" type="button" id="copyCode">📋 Copy my code</button></div>
+      <div id="s3msg" class="out"></div>
+      <textarea class="code hidden" id="codeBox" readonly aria-label="Your code"></textarea>
+      <ol start="4">
+        <li>Go back to the code editor tab. Click in the empty box and press <b class="ui">Ctrl</b>+<b class="ui">V</b> (Mac: <b class="ui">⌘</b>+<b class="ui">V</b>) to paste.</li>
+        <li>Click the 💾 <b class="ui">Save</b> icon above the code.</li>
+        <li>Next to the <b class="ui">▷ Run</b> button, there is a dropdown menu. Pick <b class="ui">setup</b> from it.</li>
+        <li>Click <b class="ui">▷ Run</b>.</li>
+      </ol>
+      <figure class="shot"><img src="img/03b-run-setup.png" alt="The Apps Script toolbar with setup picked in the dropdown and the Run button" loading="lazy"><figcaption>Pick "setup", then click Run.</figcaption></figure>
+      <p><b>Google will now ask for permission.</b> This is normal. Google shows this warning for any code it didn't write itself:</p>
+      <ol start="8">
+        <li>Click <b class="ui">Review permissions</b>, then click your Google account.</li>
+        <li>You'll see <i>"Google hasn't verified this app."</i> Click <b class="ui">Advanced</b> (small link at the bottom left).</li>
+        <li>Click <b class="ui">Go to Untitled project (unsafe)</b>. It says "unsafe" only because you added the code yourself.</li>
+        <li>Click <b class="ui">Allow</b>.</li>
+      </ol>
+      <figure class="shot"><img src="img/03c-unverified.png" alt="Google's unverified app screen with the Advanced link" loading="lazy"><figcaption>Click Advanced, then "Go to … (unsafe)".</figcaption></figure>
+      <div class="tip">The code only works on <b>this one spreadsheet</b>. It also looks up product names online when you scan a new bottle.</div>
+      <p class="see">At the bottom of the code editor: <i>Execution completed</i>. Back in your spreadsheet, two new tabs at the bottom: <b>Items</b> and <b>Log</b>.</p>
+      <details class="help-q"><summary>Stuck? Common problems</summary>
+        <ul>
+          <li><b>"Syntax error"</b>: part of the code is missing or there's extra code. Go back to step 2 of this section, delete everything, and paste again.</li>
+          <li><b>I don't see "setup" in the dropdown</b>: click 💾 Save first, then look again.</li>
+          <li><b>No Items/Log tabs</b>: refresh the spreadsheet tab (press F5).</li>
+        </ul>
+      </details>
+      <div class="donebtn"><label><input type="checkbox" data-done="3"> I see the Items and Log tabs</label></div>
+    </div>
+  </details>
+
+  <!-- 4 -->
+  <details class="step" data-step="4">
+    <summary><div class="num"><span>4</span></div><h2>Turn your sheet into a web app</h2><span class="time">3 min</span></summary>
+    <div class="body">
+      <p>This gives your sheet a web address that the phones can talk to.</p>
+      <ol>
+        <li>In the code editor tab, click the blue <b class="ui">Deploy</b> button (top right) → <b class="ui">New deployment</b>.</li>
+        <li>Next to <i>Select type</i>, click the ⚙️ gear → <b class="ui">Web app</b>.</li>
+        <li>Fill in:
+          <ul>
+            <li><b>Description:</b> <code>inventory</code></li>
+            <li><b>Execute as:</b> <b class="ui">Me</b></li>
+            <li><b>Who has access:</b> <b class="ui">Anyone</b>. <i>Not</i> "Anyone with Google account".</li>
+          </ul>
+        </li>
+        <li>Click <b class="ui">Deploy</b>. If Google asks for permission again, do the same <b>Advanced → Go to … → Allow</b> as before.</li>
+        <li>Under <b>Web app URL</b>, click <b class="ui">Copy</b>.</li>
+      </ol>
+      <figure class="shot"><img src="img/04-deploy-settings.png" alt="The New deployment window with Web app, Execute as Me, and Anyone selected" loading="lazy"><figcaption>Execute as: Me. Who has access: Anyone.</figcaption></figure>
+      <div class="tip"><b>Is "Anyone" safe?</b> Yes. It only means people don't need a Google login to use the app. Nobody can see or change anything without your PIN, and your spreadsheet stays private.</div>
+      <div class="field">
+        <label class="f" for="apiUrl">Paste your Web app URL here</label>
+        <input class="t wide" id="apiUrl" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="btns"><button class="btn primary" type="button" id="testApi">Test it</button></div>
+      <div id="s4msg" class="out"></div>
+      <div class="donebtn"><label><input type="checkbox" data-done="4"> Test passed</label></div>
+    </div>
+  </details>
+
+  <!-- 5 -->
+  <details class="step" data-step="5">
+    <summary><div class="num"><span>5</span></div><h2>Make a free GitHub account</h2><span class="time">5 min</span></summary>
+    <div class="body">
+      <p>GitHub is a free website that will hold your app so phones can open it. You won't write any code there.</p>
+      <ol>
+        <li>Go to <a href="https://github.com/signup" target="_blank" rel="noopener"><b>github.com/signup</b></a>.</li>
+        <li>Use your Post's email if you made one.</li>
+        <li>Pick a <b>username</b>. It becomes part of your app's address, so keep it short, like <code class="post-user">vfwpost1234</code>.</li>
+        <li>Make a password, solve the little puzzle, then type the code GitHub emails you.</li>
+        <li>If GitHub asks questions about how you'll use it, you can click <b class="ui">Skip</b>.</li>
+      </ol>
+      <div class="field">
+        <label class="f" for="ghUser">Your GitHub username</label>
+        <input class="t" id="ghUser" placeholder="vfwpost1234" autocomplete="off" spellcheck="false">
+        <div class="help">We'll use this to show you your app's address later.</div>
+      </div>
+      <div class="donebtn"><label><input type="checkbox" data-done="5"> I have a GitHub account</label></div>
+    </div>
+  </details>
+
+  <!-- 6 -->
+  <details class="step" data-step="6">
+    <summary><div class="num"><span>6</span></div><h2>Download your app files</h2><span class="time">2 min</span></summary>
+    <div class="body">
+      <p>This page builds the app with your Post's name, your icon, and your sheet's address already inside it.</p>
+      <div class="icons"><img id="iconPrev" alt="Your app icon"><span>Your app icon</span></div>
+      <div class="btns"><button class="btn primary big" type="button" id="dlZip">⬇️ Download my app files</button></div>
+      <div id="s6msg" class="out"></div>
+      <p><b>Now unzip it</b> (open the folder):</p>
+      <ul>
+        <li><b>Windows:</b> open your <b>Downloads</b> folder. Right-click <code class="zipname">inventory-app.zip</code> → <b class="ui">Extract All…</b> → <b class="ui">Extract</b>.</li>
+        <li><b>Mac:</b> double-click the zip file in Downloads.</li>
+      </ul>
+      <figure class="shot"><img src="img/06-extract-all.png" alt="Right-click menu on a zip file in Windows with Extract All highlighted" loading="lazy"><figcaption>Windows: right-click → Extract All.</figcaption></figure>
+      <p class="see">A new folder with <b>6 files</b> inside: <code>index.html</code>, <code>manifest.json</code>, <code>sw.js</code>, <code>icon-192.png</code>, <code>icon-512.png</code>, <code>apple-touch-icon.png</code>.</p>
+      <details class="help-q"><summary>Can't unzip? Download the files one at a time instead</summary>
+        <p>Click each one. They'll land in your Downloads folder.</p>
+        <div class="btns" id="singleFiles"></div>
+      </details>
+      <div class="donebtn"><label><input type="checkbox" data-done="6"> I have the folder with 6 files</label></div>
+    </div>
+  </details>
+
+  <!-- 7 -->
+  <details class="step" data-step="7">
+    <summary><div class="num"><span>7</span></div><h2>Put your app files on GitHub</h2><span class="time">5 min</span></summary>
+    <div class="body">
+      <ol>
+        <li>Go to <a href="https://github.com/new" target="_blank" rel="noopener"><b>github.com/new</b></a>.</li>
+        <li><b>Repository name:</b> type <code>inventory</code></li>
+        <li>Pick <b class="ui">Public</b>. (Free web pages need this. Your app files have no inventory numbers or PINs in them.)</li>
+        <li>Turn on <b class="ui">Add a README file</b>.</li>
+        <li>Click the green <b class="ui">Create repository</b> button at the bottom.</li>
+      </ol>
+      <figure class="shot"><img src="img/07a-new-repo.png" alt="GitHub's new repository form with the name inventory, Public, and Add a README" loading="lazy"><figcaption>Name: inventory. Public. Add a README.</figcaption></figure>
+      <ol start="6">
+        <li>On the next page, click <b class="ui">Add file</b> → <b class="ui">Upload files</b>.</li>
+        <li>Open your unzipped folder from step 6. Press <b class="ui">Ctrl</b>+<b class="ui">A</b> to select all 6 files, and drag them onto the GitHub page.</li>
+        <li>Wait until all 6 file names show up, then click the green <b class="ui">Commit changes</b> button.</li>
+      </ol>
+      <figure class="shot"><img src="img/07b-upload.png" alt="GitHub's upload page with six files listed and the Commit changes button" loading="lazy"><figcaption>Drag the 6 files in, then Commit changes.</figcaption></figure>
+      <div class="warn">Only upload the 6 app files. Never upload sales reports, spreadsheets, or anything with PINs.</div>
+      <p class="see">Your repository lists <code>index.html</code>, <code>manifest.json</code>, <code>sw.js</code>, the 3 icon files and <code>README.md</code>.</p>
+      <div class="donebtn"><label><input type="checkbox" data-done="7"> My files are on GitHub</label></div>
+    </div>
+  </details>
+
+  <!-- 8 -->
+  <details class="step" data-step="8">
+    <summary><div class="num"><span>8</span></div><h2>Turn on your app's web page</h2><span class="time">3 min + 2 min wait</span></summary>
+    <div class="body">
+      <ol>
+        <li>In your <b>inventory</b> repository, click <b class="ui">⚙️ Settings</b> (in the row of tabs near the top).</li>
+        <li>In the list on the left, click <b class="ui">Pages</b>.</li>
+        <li>Under <b>Build and deployment</b>, make sure <b>Source</b> says <b class="ui">Deploy from a branch</b>.</li>
+        <li>Under <b>Branch</b>, change <b class="ui">None</b> to <b class="ui">main</b>. Leave <b class="ui">/ (root)</b>. Click <b class="ui">Save</b>.</li>
+        <li>Wait 2 minutes, then refresh the page (F5).</li>
+      </ol>
+      <figure class="shot"><img src="img/08-pages.png" alt="GitHub Pages settings with the branch set to main and root" loading="lazy"><figcaption>Settings → Pages → Branch: main → Save.</figcaption></figure>
+      <p class="see">A box at the top that says <b>"Your site is live at …"</b></p>
+      <div class="field">
+        <label class="f" for="siteUrl">Paste your site address here</label>
+        <input class="t wide" id="siteUrl" placeholder="https://vfwpost1234.github.io/inventory/" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="btns"><button class="btn primary" type="button" id="testSite">Check it</button></div>
+      <div id="s8msg" class="out"></div>
+      <details class="help-q"><summary>Stuck? Common problems</summary>
+        <ul>
+          <li><b>No "Pages" in the list:</b> you're in your account settings. Go back to the <b>inventory</b> repository and use <i>its</i> Settings tab.</li>
+          <li><b>Branch menu has no "main", or it says you need to upgrade:</b> the repository is Private. In Settings → General, scroll to the bottom (Danger Zone) → <b>Change visibility</b> → <b>Public</b>.</li>
+          <li><b>"404 There isn't a GitHub Pages site here":</b> wait a few more minutes. Then check that <code>index.html</code> is in the main list of files, not inside a folder.</li>
+        </ul>
+      </details>
+      <div class="donebtn"><label><input type="checkbox" data-done="8"> My app's web page is live</label></div>
+    </div>
+  </details>
+
+  <!-- 9 -->
+  <details class="step" data-step="9">
+    <summary><div class="num"><span>9</span></div><h2>Open it on your phone</h2><span class="time">3 min</span></summary>
+    <div class="body">
+      <ol>
+        <li>On your phone, open <span class="mono site-link">your site address</span>. Scan this code with your phone's camera:
+          <div id="phoneQr" style="max-width:180px;margin:10px 0"></div></li>
+        <li>The app opens on <b>More</b>. Type your <b>name</b> and your <b>manager PIN</b>. Tap <b class="ui">Save &amp; connect</b>.</li>
+        <li>The little label at the top right should turn green and say <b>Live · Mgr</b>.</li>
+        <li>Put it on your home screen so it opens like an app:
+          <ul>
+            <li><b>iPhone</b> (use Safari): tap Share <b class="ui">□↑</b> → <b class="ui">Add to Home Screen</b>.</li>
+            <li><b>Android</b> (use Chrome): tap <b class="ui">⋮</b> → <b class="ui">Add to Home screen</b> or <b class="ui">Install app</b>.</li>
+          </ul>
+        </li>
+        <li>Open it from the new icon. On the <b>Scan</b> tab, tap <b class="ui">Start scanning</b>, then tap <b class="ui">Allow</b> for the camera.</li>
+      </ol>
+      <details class="help-q"><summary>Stuck? Common problems</summary>
+        <ul>
+          <li><b>Label says "Wrong PIN":</b> retype the manager PIN from step 1.</li>
+          <li><b>Camera won't start (iPhone):</b> Settings → Safari → Camera → Allow. <b>(Android):</b> tap the icon left of the web address → Permissions → Camera → Allow.</li>
+          <li><b>Opening from the home screen asks for my PIN again:</b> that's normal on iPhone the first time. Type it once more.</li>
+        </ul>
+      </details>
+      <div class="donebtn"><label><input type="checkbox" data-done="9"> It says Live on my phone</label></div>
+    </div>
+  </details>
+
+  <!-- 10 -->
+  <details class="step" data-step="10">
+    <summary><div class="num"><span>10</span></div><h2>Add your bottles and do your first count</h2><span class="time">30–60 min at the bar</span></summary>
+    <div class="body">
+      <p><b>First, get your list of items into the app.</b> Pick one:</p>
+      <ul>
+        <li><b>Easiest: our starter list.</b> It has about 75 common liquors, beers, wines and sodas. <a href="starter-items.csv" download="starter-items.csv">Download the starter list</a>. Then, on a computer, open your app → <b class="ui">More</b> → <b class="ui">Import items</b> → choose the file → untick anything you don't carry → <b class="ui">Add items</b>.</li>
+        <li class="if-sky"><b>From SkyTab:</b> in SkyTab, export the <i>Menu Item Detail</i> report to Excel. Then open your app → <b class="ui">More</b> → <b class="ui">Import items</b> → choose that file. Leave food unticked.</li>
+        <li><b>Start from nothing:</b> skip this. Scan each bottle and the app asks you to name it.</li>
+      </ul>
+      <p><b>Then do your first full count</b> (this sets the real numbers):</p>
+      <ol>
+        <li>Open the app → <b class="ui">Count</b> tab → <b class="ui">Start a count</b>.</li>
+        <li>Scan every bottle, can and case. Each scan adds 1. A case barcode adds the whole case.</li>
+        <li>The first time you scan a product, the app asks about the barcode. Tap <b class="ui">Add to existing item</b>, find it in the list, and say if it's a single or a case. After that, the barcode is known forever.</li>
+        <li>For part-full bottles, type a number like <b>0.5</b>.</li>
+        <li>When you're done, tap <b class="ui">Save count</b>.</li>
+        <li>Set a <b>Par</b> (how many to keep on hand) on each item: <b>Items</b> tab → tap an item → <b>Edit item</b>. You can also type pars in the Google Sheet's <b>Par</b> column.</li>
+      </ol>
+      <div class="donebtn"><label><input type="checkbox" data-done="10"> I did my first count</label></div>
+    </div>
+  </details>
+
+  <!-- 11 -->
+  <details class="step" data-step="11">
+    <summary><div class="num"><span>11</span></div><h2>Give it to your bartenders</h2><span class="time">5 min</span></summary>
+    <div class="body">
+      <p>Print a card to keep behind the bar. Bartenders scan the QR code with their phone camera, type their name and the <b>staff PIN</b>, and they're set.</p>
+      <div class="row">
+        <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="cardPin" style="width:20px;height:20px"> Print the staff PIN on the card</label>
+      </div>
+      <div class="tip">Leave the PIN off if the card will be where members can see it. Tell bartenders the PIN in person instead.</div>
+      <div class="btns"><button class="btn primary big" type="button" id="printCard">🖨️ Print staff card</button></div>
+      <div id="cardPreview" style="margin-top:12px"></div>
+      <div class="donebtn"><label><input type="checkbox" data-done="11"> My bartenders have it</label></div>
+    </div>
+  </details>
+
+  <section class="intro" style="margin-top:24px">
+    <h2>🎉 Your weekly routine</h2>
+    <ul>
+      <li><b>Delivery comes in:</b> Scan → <b>+ Received</b>. Scan a case barcode to add the whole case.</li>
+      <li><b>Broken, comped, or moved to the canteen:</b> Scan → <b>− Used / removed</b>, and pick a reason.</li>
+      <li><b>Once or twice a week:</b> Count tab → scan everything → Save count.</li>
+      <li><b>Before ordering:</b> the <b>Order</b> tab shows everything below par. Tap <b>Text / copy list</b> to send it to your supplier.</li>
+      <li class="if-sky"><b>Once a week (SkyTab):</b> in SkyTab, run Reports → <i>Sales Summary by Item</i> for the days since your last import, and export it to Excel. In the app, go to More → <b>Import a SkyTab sales report</b>. Always count first, then import only the sales from after that count.</li>
+      <li><b>Mistake?</b> Every change has an <b>Undo</b> button on the Scan tab, and the Google Sheet's <b>Log</b> tab shows who did what.</li>
+    </ul>
+  </section>
+
+  <h2 style="font-size:20px;margin:28px 0 8px">Questions</h2>
+  <details class="help-q"><summary>How do I change a PIN later?</summary>
+    <ol>
+      <li>Open your Google Sheet → Extensions → Apps Script.</li>
+      <li>Near the top, change the numbers inside the quotes on the <code>STAFF_PIN</code> or <code>MANAGER_PIN</code> line. Click 💾 Save.</li>
+      <li>Click <b>Deploy</b> → <b>Manage deployments</b> → ✏️ pencil → under Version pick <b>New version</b> → <b>Deploy</b>. Your web address stays the same.</li>
+      <li>Everyone types the new PIN in the app (More tab).</li>
+    </ol>
+  </details>
+  <details class="help-q"><summary>We got SkyTab later (or stopped using it). How do I turn that on or off?</summary>
+    <p>Come back to this page. In step 1, change your answer and click Save. In step 6, download your files again. Then in GitHub, use <b>Add file → Upload files</b> to upload just the new <code>index.html</code> and click Commit. Phones get the change the next time they open the app.</p>
+  </details>
+  <details class="help-q"><summary>Can I get my inventory into Excel?</summary>
+    <p>Yes. In the app: More → <b>Download inventory (Excel)</b>. Or, in the Google Sheet: File → Download → Microsoft Excel.</p>
+  </details>
+  <details class="help-q"><summary>What if there's no cell signal in the cooler?</summary>
+    <p>Keep scanning. The app saves changes on the phone and sends them when you're back in signal. The label at the top shows how many are waiting.</p>
+  </details>
+  <details class="help-q"><summary>Who can see our numbers?</summary>
+    <p>Only people with access to your Google Sheet, and people who have your PINs (through the app). The GitHub page only holds the app itself, not your data.</p>
+  </details>
+</main>
+<footer>Made by VFW Post 9509 for fellow Posts · Free to use · <a href="./">Post 9509's app</a></footer>
+
+<div id="card"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const KEY = 'vfwsetup.v1', PINKEY = 'vfwsetup.pins';
+const TOTAL = 11;
+function load(store, k, d) { try { return JSON.parse(store.getItem(k)) || d; } catch (e) { return d; } }
+function save(store, k, v) { try { store.setItem(k, JSON.stringify(v)); } catch (e) { /* storage blocked */ } }
+const st = load(localStorage, KEY, { done: {} });
+const pins = load(sessionStorage, PINKEY, {});
+const persist = () => { save(localStorage, KEY, st); save(sessionStorage, PINKEY, pins); };
+const postName = () => (st.name || '').trim() || ('VFW Post ' + (st.number || ''));
+const msg = (id, cls, html) => { $(id).innerHTML = html ? `<div class="${cls}">${html}</div>` : ''; };
+
+// Hide screenshots that haven't been added yet.
+$$('figure.shot img').forEach(img => {
+  const hide = () => img.closest('figure').classList.add('hidden');
+  img.addEventListener('error', hide);
+  if (img.complete && !img.naturalWidth) hide();
+});
+
+/* ---------------- progress */
+function render() {
+  const n = Object.keys(st.done).filter(k => st.done[k]).length;
+  $('#progTxt').textContent = `${n} of ${TOTAL} steps done`;
+  $('#progBar').style.width = (n / TOTAL * 100) + '%';
+  $$('.step').forEach(s => s.classList.toggle('done', !!st.done[s.dataset.step]));
+  $$('[data-done]').forEach(c => { c.checked = !!st.done[c.dataset.done]; });
+  $$('.if-sky').forEach(el => el.classList.toggle('hidden', st.skytab === false));
+  const num = st.number || '1234';
+  $$('.post-sheet').forEach(el => { el.textContent = `Post ${num} Inventory`; });
+  $$('.post-user').forEach(el => { el.textContent = `vfwpost${num}`; });
+  $('#ghUser').placeholder = `vfwpost${num}`;
+  const guess = st.site || (st.ghUser ? `https://${st.ghUser.toLowerCase()}.github.io/inventory/` : '');
+  $('#siteUrl').placeholder = guess || `https://vfwpost${num}.github.io/inventory/`;
+  if (!$('#siteUrl').value && guess) $('#siteUrl').value = guess;
+  $$('.site-link').forEach(el => { el.textContent = st.site || guess || 'your site address'; });
+  $('.zipname').textContent = zipName();
+  drawPhoneQr();
+  if (st.number) $('#iconPrev').src = iconDataUrl(144);
+  renderCard();
+}
+$$('[data-done]').forEach(c => c.addEventListener('change', () => {
+  st.done[c.dataset.done] = c.checked; persist(); render();
+  if (c.checked) openStep(Number(c.dataset.done) + 1);
+}));
+function openStep(n) {
+  const s = $(`.step[data-step="${n}"]`); if (!s) return;
+  $$('.step').forEach(x => { if (x !== s && x.dataset.step < n) x.open = false; });
+  s.open = true;
+  setTimeout(() => s.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+}
+$('#resetAll').onclick = () => {
+  if (!confirm('Clear everything you typed on this page and start over? (Your Google Sheet and GitHub stay as they are.)')) return;
+  localStorage.removeItem(KEY); sessionStorage.removeItem(PINKEY); location.reload();
+};
+
+/* ---------------- step 1 */
+$('#postNum').value = st.number || '';
+$('#postName').value = st.name || '';
+if (st.skytab !== undefined) $(`input[name=skytab][value=${st.skytab ? 'yes' : 'no'}]`).checked = true;
+$('#staffPin').value = pins.staff || '';
+$('#mgrPin').value = pins.mgr || '';
+$('#ghUser').value = st.ghUser || '';
+$('#apiUrl').value = st.api || '';
+$('#siteUrl').value = st.site || '';
+$$('[data-show]').forEach(b => b.onclick = () => {
+  const i = $('#' + b.dataset.show); const show = i.type === 'password';
+  i.type = show ? 'text' : 'password'; b.textContent = show ? 'Hide' : 'Show';
+});
+$('#save1').onclick = () => {
+  const num = $('#postNum').value.trim().replace(/^#/, '');
+  const sky = $('input[name=skytab]:checked');
+  const sp = $('#staffPin').value.trim(), mp = $('#mgrPin').value.trim();
+  const problems = [];
+  if (!/^\d{1,6}$/.test(num)) problems.push('Type your Post number (numbers only).');
+  if (!sky) problems.push('Pick Yes or No for Shift4 / SkyTab.');
+  if (!/^\d{4,8}$/.test(sp)) problems.push('The staff PIN needs 4 to 8 numbers.');
+  if (!/^\d{4,8}$/.test(mp)) problems.push('The manager PIN needs 4 to 8 numbers.');
+  if (sp && sp === mp) problems.push('The two PINs must be different.');
+  if (mp && (mp === num || /^(\d)\1+$/.test(mp) || ['1234', '12345', '123456', '4321'].includes(mp))) problems.push('Pick a harder manager PIN. Not your Post number, and not 1234 or 1111.');
+  if (problems.length) return msg('#s1msg', 'bad', problems.map(esc).join('<br>'));
+  const changedSky = st.skytab !== undefined && st.skytab !== (sky.value === 'yes');
+  st.number = num; st.name = $('#postName').value.trim(); st.skytab = sky.value === 'yes';
+  pins.staff = sp; pins.mgr = mp;
+  st.done[1] = true; persist();
+  msg('#s1msg', 'good', changedSky && st.done[6] ? 'Saved. You changed the SkyTab answer, so redo step 6 and upload the new index.html to GitHub.' : 'Saved!');
+  render(); openStep(st.done[2] ? firstUndone() : 2);
+};
+function firstUndone() { for (let i = 1; i <= TOTAL; i++) if (!st.done[i]) return i; return TOTAL; }
+function needPins(where) {
+  if (pins.staff && pins.mgr && st.number) return true;
+  msg(where, 'bad', 'Go back to <b>step 1</b> and type your Post number and both PINs again, then click Save. For safety, this page forgets PINs when you close it.');
+  return false;
+}
+
+/* ---------------- step 3: code */
+let codeText = '';
+$('#copyCode').onclick = async () => {
+  if (!needPins('#s3msg')) return;
+  try {
+    const src = await (await fetch('Code.gs', { cache: 'no-store' })).text();
+    if (!/const STAFF_PIN = '[^']*';/.test(src)) throw new Error('code template looks wrong');
+    codeText = src
+      .replace(/const STAFF_PIN = '[^']*';/, `const STAFF_PIN = '${pins.staff}';`)
+      .replace(/const MANAGER_PIN = '[^']*';/, `const MANAGER_PIN = '${pins.mgr}';`)
+      .replace(/^ \* VFW Post Bar Inventory Scanner backend.*$/m, ` * ${postName()}: Bar Inventory Scanner backend (Google Apps Script)`);
+  } catch (e) { return msg('#s3msg', 'bad', 'Could not load the code. Check your internet connection and try again.'); }
+  try {
+    await navigator.clipboard.writeText(codeText);
+    msg('#s3msg', 'good', '✅ Copied! Your PINs are already in it. Now go paste it into the code editor.');
+  } catch (e) {
+    const box = $('#codeBox'); box.value = codeText; box.classList.remove('hidden'); box.focus(); box.select();
+    msg('#s3msg', 'warn', 'Your browser blocked copying. The code is in the box below and already selected. Press Ctrl+C (Mac: ⌘+C) to copy it.');
+  }
+};
+
+/* ---------------- step 4: test the web app */
+$('#testApi').onclick = async () => {
+  const url = $('#apiUrl').value.trim();
+  if (!needPins('#s4msg')) return;
+  if (/\/dev(\?|$)/.test(url)) return msg('#s4msg', 'bad', 'That is the <b>test</b> address (it ends in <code>/dev</code>). Use the <b>Web app URL</b> from Deploy → New deployment. It ends in <code>/exec</code>.');
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url)) return msg('#s4msg', 'bad', 'That doesn\'t look right. It should start with <code>https://script.google.com/macros/s/</code> and end with <code>/exec</code>. Click <b>Copy</b> under "Web app URL" and paste again.');
+  msg('#s4msg', 'tip', '<span class="spin"></span> Testing… this can take 10 seconds.');
+  let r;
+  try {
+    const res = await fetch(url, { method: 'POST', body: JSON.stringify({ action: 'ping', pin: pins.mgr, user: 'setup' }) });
+    r = await res.json();
+  } catch (e) {
+    return msg('#s4msg', 'bad', 'Your sheet didn\'t answer. The most common cause: <b>Who has access</b> is not set to <b>Anyone</b>. Fix it under Deploy → Manage deployments → ✏️ → Who has access: <b>Anyone</b> → Deploy. Then test again.');
+  }
+  if (r.ok && r.role === 'manager') {
+    st.api = url; st.done[4] = true; persist(); render();
+    msg('#s4msg', 'good', '✅ It works! Your sheet answered, and your manager PIN is correct.');
+    setTimeout(() => openStep(5), 900);
+  } else if (r.code === 'pin') {
+    msg('#s4msg', 'bad', 'Your sheet answered, but the PIN didn\'t match. The code in your sheet has different PINs from step 1. Redo <b>step 3</b> (Copy my code, paste, Save), then in Apps Script do Deploy → Manage deployments → ✏️ → Version: <b>New version</b> → Deploy. Then test again.');
+  } else {
+    msg('#s4msg', 'bad', 'Your sheet answered with a problem: ' + esc(r.error || 'unknown') + '<br>If it mentions "Items sheet missing", go back to step 3 and click <b>Run</b> with <b>setup</b> picked.');
+  }
+};
+
+/* ---------------- step 5 */
+$('#ghUser').oninput = () => { st.ghUser = $('#ghUser').value.trim().replace(/^@/, ''); persist(); render(); };
+
+/* ---------------- step 6: build the files */
+function zipName() { return `post${st.number || ''}-inventory-app.zip`; }
+function drawIcon(size) {
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const g = c.getContext('2d'), s = size / 512;
+  g.fillStyle = '#14284b'; g.fillRect(0, 0, size, size);
+  g.fillStyle = '#fff';
+  [[126, 14], [150, 8], [168, 22], [200, 8], [218, 14], [242, 26], [278, 8], [296, 14], [320, 22], [352, 8], [370, 16]]
+    .forEach(([x, w]) => g.fillRect(x * s, 150 * s, w * s, 170 * s));
+  g.fillStyle = '#b3121f'; g.fillRect(110 * s, 338 * s, 292 * s, 16 * s);
+  const label = String(st.number || '');
+  const fs = label.length > 4 ? 46 : 58;
+  g.fillStyle = '#fff'; g.font = `700 ${fs * s}px "Segoe UI", system-ui, Arial, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  g.fillText(label, size / 2, 420 * s);
+  return c;
+}
+const iconDataUrl = size => drawIcon(size).toDataURL('image/png');
+const iconBlob = size => new Promise(res => drawIcon(size).toBlob(res, 'image/png'));
+
+async function buildFiles() {
+  if (!st.number) throw new Error('Finish step 1 first.');
+  if (!st.api) throw new Error('Finish step 4 first (the test has to pass), so the app knows where your sheet is.');
+  const get = async f => { const r = await fetch(f, { cache: 'no-store' }); if (!r.ok) throw new Error('Could not load ' + f); return r.text(); };
+  let html = await get('index.html');
+  const cfg = `/*CONFIG*/const POST = {\n  number: ${JSON.stringify(st.number)},\n  name: ${JSON.stringify(postName())},\n  api: ${JSON.stringify(st.api)},\n  skytab: ${st.skytab ? 'true' : 'false'}\n};/*END CONFIG*/`;
+  if (!/\/\*CONFIG\*\/[\s\S]*?\/\*END CONFIG\*\//.test(html)) throw new Error('The app template is missing its settings block.');
+  html = html.replace(/\/\*CONFIG\*\/[\s\S]*?\/\*END CONFIG\*\//, () => cfg);
+  const manifest = JSON.stringify({
+    name: postName() + ' Inventory', short_name: 'Inventory', start_url: './', scope: './', display: 'standalone',
+    background_color: '#14284b', theme_color: '#14284b',
+    icons: [{ src: 'icon-192.png', sizes: '192x192', type: 'image/png' }, { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }]
+  }, null, 2);
+  return [
+    ['index.html', new Blob([html], { type: 'text/html' })],
+    ['manifest.json', new Blob([manifest], { type: 'application/json' })],
+    ['sw.js', new Blob([await get('sw.js')], { type: 'text/javascript' })],
+    ['icon-192.png', await iconBlob(192)],
+    ['icon-512.png', await iconBlob(512)],
+    ['apple-touch-icon.png', await iconBlob(180)]
+  ];
+}
+function saveBlob(name, blob) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+let jszip;
+function loadZip() {
+  return jszip || (jszip = new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+    s.onload = () => res(window.JSZip); s.onerror = () => { jszip = null; rej(new Error('Could not load the zip tool. Use "download the files one at a time" below.')); };
+    document.head.appendChild(s);
+  }));
+}
+$('#dlZip').onclick = async () => {
+  const b = $('#dlZip'); b.disabled = true;
+  try {
+    const files = await buildFiles();
+    const Z = await loadZip(); const zip = new Z();
+    files.forEach(([n, blob]) => zip.file(n, blob));
+    saveBlob(zipName(), await zip.generateAsync({ type: 'blob' }));
+    msg('#s6msg', 'good', `✅ Downloaded <code>${esc(zipName())}</code>. Look in your Downloads folder.`);
+  } catch (e) { msg('#s6msg', 'bad', esc(e.message)); }
+  b.disabled = false;
+};
+$('#singleFiles').innerHTML = ['index.html', 'manifest.json', 'sw.js', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png']
+  .map(n => `<button class="btn" type="button" data-one="${n}">${n}</button>`).join('');
+$$('[data-one]').forEach(btn => btn.onclick = async () => {
+  try { const f = (await buildFiles()).find(([n]) => n === btn.dataset.one); saveBlob(f[0], f[1]); btn.textContent = '✓ ' + f[0]; }
+  catch (e) { msg('#s6msg', 'bad', esc(e.message)); }
+});
+
+/* ---------------- step 8: check the site */
+$('#testSite').onclick = async () => {
+  let url = $('#siteUrl').value.trim();
+  if (!/^https?:\/\//.test(url)) url = 'https://' + url;
+  if (!url.endsWith('/')) url += '/';
+  if (!/^https:\/\/[\w-]+\.github\.io\/[\w.-]+\/$/.test(url)) return msg('#s8msg', 'bad', 'It should look like <code>https://yourname.github.io/inventory/</code>');
+  msg('#s8msg', 'tip', '<span class="spin"></span> Checking…');
+  try {
+    const r = await fetch(url + 'index.html', { cache: 'no-store' });
+    if (r.status === 404) return msg('#s8msg', 'bad', 'Not there yet (404). Wait 2 more minutes and check again. If it still fails, make sure <code>index.html</code> is in the main file list on GitHub, not inside a folder.');
+    const t = await r.text();
+    if (st.api && !t.includes(st.api)) return msg('#s8msg', 'warn', 'The page is live, but it has a different sheet address inside. Download your files again in step 6 and upload the new <code>index.html</code>.');
+    st.site = url; st.done[8] = true; persist(); render();
+    msg('#s8msg', 'good', `✅ Your app is live at <a href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a>`);
+    setTimeout(() => openStep(9), 900);
+  } catch (e) {
+    st.site = url; persist(); render();
+    msg('#s8msg', 'warn', `We couldn't check it automatically. Open <a href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a>. If you see your Post's inventory app, you're done with this step. Tick the box below. If you see <b>404</b>, wait 2 more minutes and check again.`);
+  }
+};
+
+/* ---------------- QR codes & staff card */
+function qrSvg(text, cell) {
+  if (!window.qrcode || !text) return '';
+  const q = window.qrcode(0, 'M'); q.addData(text); q.make();
+  return q.createSvgTag({ cellSize: cell, margin: 2, scalable: true });
+}
+function drawPhoneQr() {
+  const url = st.site || '';
+  $('#phoneQr').innerHTML = url ? qrSvg(url, 5) : '<span class="tip" style="display:block">Finish step 8 to get a QR code here.</span>';
+}
+function renderCard() {
+  const url = st.site;
+  if (!url) { $('#cardPreview').innerHTML = '<div class="tip">Finish step 8 first. The card needs your app\'s address.</div>'; $('#card').innerHTML = ''; return; }
+  const withPin = $('#cardPin').checked && pins.staff;
+  const html = `<div class="card-sheet">
+    <h2>${esc(postName())}</h2>
+    <div class="sub">Bar Inventory Scanner</div>
+    ${qrSvg(url, 8)}
+    <div class="url">${esc(url)}</div>
+    <ol>
+      <li>Scan the code with your phone camera and open the link.</li>
+      <li>Type your name and the staff PIN. Tap <b>Save &amp; connect</b>.</li>
+      <li>Add it to your home screen (iPhone: Share → Add to Home Screen. Android: ⋮ → Install app).</li>
+      <li>Deliveries: scan → <b>+ Received</b>. Breakage/comps: scan → <b>− Used / removed</b>.</li>
+    </ol>
+    <div class="pin">${withPin ? 'Staff PIN: <b>' + esc(pins.staff) + '</b>' : 'Ask the Quartermaster for the staff PIN.'}</div>
+  </div>`;
+  $('#cardPreview').innerHTML = html;
+  $('#card').innerHTML = html;
+}
+$('#cardPin').onchange = () => {
+  if ($('#cardPin').checked && !pins.staff) { $('#cardPin').checked = false; alert('Go to step 1 and type the staff PIN again (this page forgets PINs when closed).'); }
+  renderCard();
+};
+$('#printCard').onclick = () => { if (!st.site) return alert('Finish step 8 first.'); renderCard(); window.print(); };
+
+render();
+if (st.done[1]) openStep(firstUndone());
+</script>
+</body>
+</html>
