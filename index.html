@@ -16,6 +16,7 @@
   --bg: #f3f4f7; --surface: #ffffff; --surface-2: #eef0f4; --text: #141a24; --muted: #5d6676;
   --line: #dde1e8; --brand: #14284b; --brand-ink: #ffffff; --accent: #b3121f; --accent-soft: #fde5e6;
   --ok: #19794a; --ok-soft: #dff3e8; --warn: #a15c00; --warn-soft: #fff1d6; --focus: #2f6fe4;
+  --chart: #2f6fe4; --chart-b: #a3aab8;
   --shadow: 0 1px 2px rgba(16,24,40,.06), 0 4px 16px rgba(16,24,40,.06);
   --radius: 14px;
   color-scheme: light;
@@ -25,6 +26,7 @@
     --bg: #0d1017; --surface: #171b24; --surface-2: #212734; --text: #e9ecf2; --muted: #9aa3b4;
     --line: #2b3242; --brand: #1d3769; --brand-ink: #ffffff; --accent: #ff5a66; --accent-soft: #3a1a1f;
     --ok: #4fcf8d; --ok-soft: #15301f; --warn: #f2b14c; --warn-soft: #3a2a10; --focus: #6d9eff;
+    --chart: #6d9eff; --chart-b: #5d6676;
     --shadow: 0 1px 2px rgba(0,0,0,.4); color-scheme: dark;
   }
 }
@@ -32,6 +34,7 @@
   --bg: #0d1017; --surface: #171b24; --surface-2: #212734; --text: #e9ecf2; --muted: #9aa3b4;
   --line: #2b3242; --brand: #1d3769; --brand-ink: #ffffff; --accent: #ff5a66; --accent-soft: #3a1a1f;
   --ok: #4fcf8d; --ok-soft: #15301f; --warn: #f2b14c; --warn-soft: #3a2a10; --focus: #6d9eff;
+  --chart: #6d9eff; --chart-b: #5d6676;
   --shadow: 0 1px 2px rgba(0,0,0,.4); color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -159,6 +162,26 @@ body:not(.is-mgr) .mgr-only { display: none !important; }
 table.prev { width: 100%; border-collapse: collapse; font-size: 14px; }
 table.prev th, table.prev td { padding: 7px 6px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
 table.prev td.n, table.prev th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Sales trends: one bar per row, value at the tip side, a 4px rounded end on the data side only. */
+.tbar { display: grid; grid-template-columns: 52px 1fr 78px; align-items: center; gap: 10px; width: 100%; padding: 7px 0; border: 0; background: none; text-align: left; color: inherit; font: inherit; }
+.tbar[disabled] { opacity: .5; }
+.tbar .track { height: 16px; }
+.tbar .fill { display: block; height: 16px; max-width: 100%; border-radius: 0 4px 4px 0; background: var(--chart); }
+.tbar.on .lbl { font-weight: 700; }
+.tbar.on .fill { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--chart); }
+.tbar .val { text-align: right; font-variant-numeric: tabular-nums; font-size: 14px; font-weight: 600; }
+.tbar .val small { display: block; font-weight: 400; font-size: 12px; color: var(--muted); }
+.key { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: var(--chart); flex: none; }
+.key.b { background: var(--chart-b); }
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
+.tile { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.tile .lbl { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.tile .big { font-size: 24px; font-weight: 700; margin-top: 2px; }
+.dchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.dchip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 999px; padding: 4px 4px 4px 10px; font-size: 13px; }
+.dchip.miss { border-style: dashed; color: var(--muted); }
+.dchip button { border: 0; background: none; color: var(--muted); font-size: 18px; line-height: 1; width: 28px; height: 28px; border-radius: 50%; }
+.up { color: var(--ok); } .down { color: var(--accent); }
 details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 .spin { width: 18px; height: 18px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: sp .8s linear infinite; display: inline-block; vertical-align: middle; }
 @keyframes sp { to { transform: rotate(360deg); } }
@@ -310,6 +333,7 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
     <div class="card stack">
       <button class="btn block" type="button" id="exportExcel">Download inventory (Excel)</button>
       <button class="btn block mgr-only" type="button" id="showReport">Shrinkage report</button>
+      <button class="btn block mgr-only" type="button" id="showTrends" data-skytab>Sales trends &amp; comparisons</button>
       <button class="btn block" type="button" id="showLog">Recent activity</button>
     </div>
 
@@ -320,7 +344,7 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
         <button class="btn block" type="button" id="showStaff">Staff &amp; PINs</button>
       </div>
     </div>
-    <p class="hint" style="text-align:center"><span id="footName"></span> · Inventory scanner v1.4<br><a href="https://vfw9509.github.io/inventory/setup.html" style="color:inherit">Set this up for another Post</a></p>
+    <p class="hint" style="text-align:center"><span id="footName"></span> · Inventory scanner v1.5<br><a href="https://vfw9509.github.io/inventory/setup.html" style="color:inherit">Set this up for another Post</a></p>
   </section>
 </main>
 
@@ -1895,6 +1919,206 @@ $('#showReport').onclick = () => {
   };
   $('#rRun', sh.body).onclick = run;
   run();
+};
+
+/* =========================================================== sales trends (manager, from the Sales tab) */
+// The sheet sends the Sales tab boiled down (see trends_ in Code.gs); the averaging and comparing happen here.
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const WEEKDAYS_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const dayOf = ymd => { const [y, m, d] = ymd.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (ymd, n) => { const d = dayOf(ymd); d.setDate(d.getDate() + n); return localDay(d); };
+const money0 = n => (n < 0 ? '−$' : '$') + Math.round(Math.abs(n)).toLocaleString();
+const shortDay = ymd => { const d = dayOf(ymd); return `${d.getMonth() + 1}/${d.getDate()}`; };
+
+$('#showTrends').onclick = async () => {
+  const sh = openSheet('Sales trends', '<div class="empty"><span class="spin"></span> Loading the sales history…</div>');
+  let T;
+  try { T = await api('trends'); if (!T.ok) throw new Error(T.error); }
+  catch (e) { sh.body.innerHTML = `<div class="empty">${esc(e instanceof NetError ? 'No connection' : e.message)}</div>`; return; }
+  const all = Object.keys(T.days).sort();
+  if (!all.length) {
+    sh.body.innerHTML = '<div class="empty">No sales history yet. It fills in from the daily SkyTab email. Older days can be added under SkyTab → Import SkyTab sales reports.</div>';
+    return;
+  }
+  const today = localDay(new Date());
+  const v = { show: 'bar', measure: '$', tab: 'weekday', wd: null, A: [], B: [], allItems: false, n: 3, cwd: 3 };
+  const keep = e => v.show === 'all' ? true : v.show === 'bar' ? T.deptClass[e[1]] === 'bar'
+    : v.show === 'food' ? T.deptClass[e[1]] === 'kitchen' : 'd' + e[1] === v.show;
+  const val = t => (v.measure === '$' ? t.money : t.qty);
+  const fmtVal = n => (v.measure === '$' ? money0(n) : Math.round(n).toLocaleString());
+  const fmtAvg = n => (v.measure === '$' ? money0(n) : fmt(Math.round(n * 10) / 10));
+  const what = () => (v.measure === '$' ? 'sales' : 'items sold');
+  const cache = {};
+  // One day's totals under the current filter, with each item's.
+  const dayTotal = ymd => {
+    const k = v.show + '|' + ymd;
+    if (cache[k]) return cache[k];
+    const t = { money: 0, qty: 0, items: {} };
+    (T.days[ymd] || []).forEach(e => {
+      if (!keep(e)) return;
+      t.money += e[3]; t.qty += e[2];
+      const it = t.items[e[0]] || (t.items[e[0]] = { qty: 0, money: 0 });
+      it.qty += e[2]; it.money += e[3];
+    });
+    return (cache[k] = t);
+  };
+  // A typical night out of a set of days: the per-night average of the total and of each item.
+  const avgOf = days => {
+    const o = { n: days.length, money: 0, qty: 0, items: {} };
+    days.forEach(d => {
+      const t = dayTotal(d);
+      o.money += t.money; o.qty += t.qty;
+      for (const k in t.items) { const it = o.items[k] || (o.items[k] = { qty: 0, money: 0 }); it.qty += t.items[k].qty; it.money += t.items[k].money; }
+    });
+    if (o.n) { o.money /= o.n; o.qty /= o.n; for (const k in o.items) { o.items[k].qty /= o.n; o.items[k].money /= o.n; } }
+    return o;
+  };
+  const change = (a, b) => {
+    if (!b) return a ? '<span class="small-note">new</span>' : '';
+    const p = Math.round((a - b) / b * 100);
+    return p > 0 ? `<span class="up">▲ ${p}%</span>` : p < 0 ? `<span class="down">▼ ${-p}%</span>` : '<span class="small-note">same</span>';
+  };
+  const bar = (label, value, max, sub, attrs, on) => `<button type="button" class="tbar ${on ? 'on' : ''}" ${attrs}>
+      <span class="lbl">${esc(label)}</span>
+      <span class="track"><span class="fill" style="width:${max > 0 ? Math.max(value / max * 100, value > 0 ? 1 : 0) : 0}%"></span></span>
+      <span class="val">${sub === null ? '–' : fmtVal(value)}<small>${esc(sub || '')}</small></span></button>`;
+  const nights = n => `${n} night${n === 1 ? '' : 's'}`;
+  // A night counts toward an average only if it had sales under the filter: a Sunday with no food night isn't a $0 food night.
+  const had = d => { const t = dayTotal(d); return t.qty > 0 || t.money > 0; };
+  const showWord = () => v.show === 'bar' ? 'bar' : v.show === 'food' ? 'kitchen' : v.show === 'all' ? '' : (T.depts[Number(v.show.slice(1))] || 'department');
+
+  // Quick picks for Compare. "prev": the last n of a weekday against the n before. "year": the same nights a year
+  // earlier (364 days back, so it's the same weekday).
+  const fill = how => {
+    const pool = all.filter(d => (v.cwd < 0 || dayOf(d).getDay() === v.cwd) && had(d)).reverse();
+    v.A = pool.slice(0, v.n).sort();
+    v.B = how === 'year' ? v.A.map(d => addDays(d, -364)) : pool.slice(v.n, v.n * 2).sort();
+  };
+  fill('prev');
+
+  const weekdayView = () => {
+    const rows = [0, 1, 2, 3, 4, 5, 6].map(w => { const days = all.filter(d => dayOf(d).getDay() === w && had(d)); return { w, days, a: avgOf(days) }; });
+    const max = Math.max(...rows.map(r => val(r.a)));
+    let html = `<p class="hint" style="margin-top:0">A typical night for each day of the week (average ${what()}). Tap a day to see each of its nights and its best sellers.</p>
+      ${rows.map(r => bar(WEEKDAYS[r.w], val(r.a), max, r.days.length ? nights(r.days.length) : null, `data-wd="${r.w}" ${r.days.length ? '' : 'disabled'}`, v.wd === r.w)).join('')}`;
+    const r = v.wd === null ? null : rows[v.wd];
+    if (r && r.days.length) {
+      const long = WEEKDAYS_LONG[r.w];
+      const typical = val(r.a);
+      const top = Object.keys(r.a.items).map(k => ({ name: T.names[k], qty: r.a.items[k].qty, money: r.a.items[k].money }))
+        .sort((x, y) => val(y) - val(x)).slice(0, 12);
+      html += `<h3>${long}s: ${fmtAvg(typical)} on a typical night</h3>
+        <table class="prev"><thead><tr><th>Night</th><th class="n">${v.measure === '$' ? 'Sales' : 'Items'}</th><th class="n">vs typical</th></tr></thead><tbody>
+        ${r.days.slice().reverse().map(d => { const x = val(dayTotal(d)); return `<tr><td>${esc(showDay(d))}</td><td class="n">${fmtVal(x)}</td><td class="n">${change(x, typical)}</td></tr>`; }).join('')}
+        </tbody></table>
+        <h3>Best sellers on a typical ${long}</h3>
+        <table class="prev"><thead><tr><th>Item</th><th class="n">Sold</th><th class="n">Sales</th></tr></thead><tbody>
+        ${top.map(i => `<tr><td>${esc(i.name)}</td><td class="n">${fmt(Math.round(i.qty * 10) / 10)}</td><td class="n">${money0(i.money)}</td></tr>`).join('')}
+        </tbody></table>
+        <p class="small-note">Per night, averaged over ${nights(r.days.length)}.</p>
+        ${r.days.length > 1 ? `<button class="btn block" type="button" id="tCmpWd" style="margin-top:12px">Compare recent ${long}s with earlier ones</button>` : ''}`;
+    }
+    return html;
+  };
+
+  const compareView = () => {
+    const ok = d => !!T.days[d] && had(d);
+    const why = d => (!T.days[d] ? ' · no sales on file' : ok(d) ? '' : ` · no ${esc(showWord())} sales`.replace('no  sales', 'no sales'));
+    const a = avgOf(v.A.filter(ok)), b = avgOf(v.B.filter(ok));
+    const setBox = (key, label) => `<div class="card" style="padding:12px">
+      <div class="row"><span class="key ${key === 'B' ? 'b' : ''}"></span><b class="grow">${key}: ${label}</b><span class="small-note">${nights(v[key].length)}</span></div>
+      <div class="dchips">${v[key].map(d => `<span class="dchip ${ok(d) ? '' : 'miss'}">${esc(showDay(d))}${why(d)}<button type="button" data-rm="${key}|${d}" aria-label="Remove ${esc(showDay(d))}">×</button></span>`).join('') || '<span class="small-note">No dates yet</span>'}</div>
+      <div class="row" style="margin-top:8px"><input class="t" type="date" data-addin="${key}" max="${today}" aria-label="Add a date to ${label}"><button class="btn small" type="button" data-add="${key}">Add</button></div></div>`;
+    let html = `<div class="card" style="padding:12px">
+        <b>Quick pick</b>
+        <div class="row" style="margin-top:8px">
+          <select class="t" id="tN" aria-label="How many nights" style="width:auto">${[1, 2, 3, 4, 5, 6, 8].map(n => `<option value="${n}" ${n === v.n ? 'selected' : ''}>Last ${n}</option>`).join('')}</select>
+          <select class="t grow" id="tCwd" aria-label="Which day">${WEEKDAYS_LONG.map((w, i) => `<option value="${i}" ${i === v.cwd ? 'selected' : ''}>${w}s</option>`).join('')}<option value="-1" ${v.cwd < 0 ? 'selected' : ''}>days (any)</option></select>
+        </div>
+        <div class="grid2" style="margin-top:8px"><button class="btn small" type="button" data-fill="prev">vs the ones before</button><button class="btn small" type="button" data-fill="year">vs a year earlier</button></div>
+      </div>
+      ${setBox('A', 'These nights')}${setBox('B', 'Compared with')}`;
+    if (!a.n || !b.n) return html + '<div class="empty">Add at least one night with sales on file to each side.</div>';
+    const keys = [...new Set([...Object.keys(a.items), ...Object.keys(b.items)])];
+    const zero = { qty: 0, money: 0 };
+    const rows = keys.map(k => ({ name: T.names[k], a: a.items[k] || zero, b: b.items[k] || zero }))
+      .map(r => Object.assign(r, { diff: val(r.a) - val(r.b) }))
+      .filter(r => val(r.a) || val(r.b))
+      .sort((x, y) => Math.abs(y.diff) - Math.abs(x.diff));
+    const shown = v.allItems ? rows : rows.slice(0, 15);
+    html += `<div class="tiles">
+        <div class="tile"><div class="lbl"><span class="key"></span>A: These nights</div><div class="big">${fmtAvg(val(a))}</div><div class="small-note">a night · ${fmtVal(val(a) * a.n)} over ${nights(a.n)}</div></div>
+        <div class="tile"><div class="lbl"><span class="key b"></span>B: Compared with</div><div class="big">${fmtAvg(val(b))}</div><div class="small-note">a night · ${fmtVal(val(b) * b.n)} over ${nights(b.n)}</div></div>
+      </div>
+      <div class="banner info">A against B, on a typical night: <b>${change(val(a), val(b)) || 'no change'}</b> in ${what()} (${fmtAvg(val(a) - val(b)).replace(/^(?=[$\d])/, '+')} a night)</div>
+      <h3>What changed most (per night)</h3>
+      <table class="prev"><thead><tr><th>Item</th><th class="n"><span class="key"></span> A</th><th class="n"><span class="key b"></span> B</th><th class="n">A vs B</th></tr></thead><tbody>
+      ${shown.map(r => `<tr><td>${esc(r.name)}</td><td class="n">${fmtAvg(val(r.a))}</td><td class="n">${fmtAvg(val(r.b))}</td><td class="n">${change(val(r.a), val(r.b))}</td></tr>`).join('')}
+      </tbody></table>
+      ${rows.length > 15 ? `<button class="btn small block" type="button" id="tAll" style="margin-top:8px">${v.allItems ? 'Show the top 15' : `Show all ${rows.length} items`}</button>` : ''}
+      <button class="btn block" type="button" id="tXls" style="margin-top:12px">Download Excel</button>`;
+    sh.cmpRows = rows;
+    return html;
+  };
+
+  // Weeks run Monday to Sunday, the last 16 that have sales.
+  const weeksView = () => {
+    const weekOf = ymd => { const d = dayOf(ymd); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return localDay(d); };
+    const weeks = {};
+    all.forEach(d => { const w = weekOf(d); (weeks[w] || (weeks[w] = [])).push(d); });
+    const list = Object.keys(weeks).sort().slice(-16).reverse()
+      .map(w => ({ w, days: weeks[w].filter(had), total: weeks[w].reduce((s, d) => s + val(dayTotal(d)), 0) }));
+    const max = Math.max(...list.map(x => x.total));
+    return `<p class="hint" style="margin-top:0">Total ${what()} each week (Monday to Sunday), newest first.</p>
+      ${list.map(x => bar(shortDay(x.w), x.total, max, nights(x.days.length), `data-week="${x.w}" title="Week of ${esc(showDay(x.w))}"`, false)).join('')}
+      <p class="small-note">A week with fewer nights may just be missing reports. Tap a week to compare it with the week before.</p>`;
+  };
+
+  const draw = () => {
+    const depts = T.depts.map((d, i) => ({ d: d || '(no department)', i })).sort((x, y) => x.d.localeCompare(y.d));
+    sh.body.innerHTML = `
+      <div class="grid2">
+        <div><label class="f" for="tShow">Sales from</label><select class="t" id="tShow">
+          <option value="bar">The bar</option><option value="food">Kitchen &amp; food nights</option><option value="all">Everything</option>
+          <optgroup label="One department">${depts.map(x => `<option value="d${x.i}">${esc(x.d)}</option>`).join('')}</optgroup></select></div>
+        <div><span class="f">Show</span><div class="seg" id="tMeasure" style="min-height:46px">${[['$', '$ sales'], ['qty', 'Items']].map(([k, l]) => `<button type="button" data-m="${k}" class="${v.measure === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>
+      </div>
+      <div class="seg" id="tTab" role="tablist" style="margin:12px 0">${[['weekday', 'By weekday'], ['compare', 'Compare'], ['weeks', 'Weeks']].map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" class="${v.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+      <div id="tOut">${v.tab === 'weekday' ? weekdayView() : v.tab === 'compare' ? compareView() : weeksView()}</div>
+      <p class="small-note" style="margin-top:14px">${all.length} days of sales on file, ${esc(showDay(all[0]))} to ${esc(showDay(all[all.length - 1]))}. Averages count only nights with sales; days with no report are left out.</p>`;
+    $('#tShow', sh.body).value = v.show;
+    $('#tShow', sh.body).onchange = e => { v.show = e.target.value; draw(); };
+    $$('[data-m]', sh.body).forEach(b => b.onclick = () => { v.measure = b.dataset.m; draw(); });
+    $$('[data-tab]', sh.body).forEach(b => b.onclick = () => { v.tab = b.dataset.tab; draw(); });
+    $$('[data-wd]', sh.body).forEach(b => b.onclick = () => { const w = Number(b.dataset.wd); v.wd = v.wd === w ? null : w; draw(); });
+    const cmpWd = $('#tCmpWd', sh.body);
+    if (cmpWd) cmpWd.onclick = () => { v.cwd = v.wd; v.n = Math.min(3, Math.floor(all.filter(d => dayOf(d).getDay() === v.wd).length / 2)) || 1; fill('prev'); v.tab = 'compare'; draw(); };
+    $$('[data-week]', sh.body).forEach(b => b.onclick = () => {
+      const w = b.dataset.week;
+      const days = (from, to) => all.filter(d => d >= from && d <= to);
+      v.A = days(w, addDays(w, 6)); v.B = days(addDays(w, -7), addDays(w, -1)); v.tab = 'compare'; draw();
+    });
+    if (v.tab === 'compare') {
+      $('#tN', sh.body).onchange = e => { v.n = Number(e.target.value); };
+      $('#tCwd', sh.body).onchange = e => { v.cwd = Number(e.target.value); };
+      $$('[data-fill]', sh.body).forEach(b => b.onclick = () => { v.n = Number($('#tN', sh.body).value); v.cwd = Number($('#tCwd', sh.body).value); fill(b.dataset.fill); draw(); });
+      $$('[data-rm]', sh.body).forEach(b => b.onclick = () => { const [k, d] = b.dataset.rm.split('|'); v[k] = v[k].filter(x => x !== d); draw(); });
+      $$('[data-add]', sh.body).forEach(b => b.onclick = () => {
+        const k = b.dataset.add, d = $(`[data-addin="${k}"]`, sh.body).value;
+        if (!d) return toast('Pick a date first', { bad: true });
+        if (!v[k].includes(d)) v[k] = [...v[k], d].sort();
+        draw();
+      });
+      const allBtn = $('#tAll', sh.body);
+      if (allBtn) allBtn.onclick = () => { v.allItems = !v.allItems; draw(); };
+      const xls = $('#tXls', sh.body);
+      if (xls) xls.onclick = () => exportExcel(sh.cmpRows.map(r => ({
+        Item: r.name, 'A: sold a night': round2(r.a.qty), 'A: $ a night': round2(r.a.money),
+        'B: sold a night': round2(r.b.qty), 'B: $ a night': round2(r.b.money)
+      })), `${FILE_TAG}_Sales_compare_${today}.xlsx`, 'Compare');
+    }
+  };
+  draw();
 };
 
 /* =========================================================== settings */
