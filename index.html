@@ -281,8 +281,8 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
         </div>
         <div>
           <b>Take sales off inventory by hand</b>
-          <p class="hint" style="margin:4px 0 10px">Only for days the daily email didn't cover. In Lighthouse, run <i>Sales Summary by Item</i> for <b>one day</b> and export it. Then load the file here and pick that day. Older days can go in as sales history only, for trends.</p>
-          <label class="btn primary block">Import a SkyTab sales report<input type="file" id="salesFile" class="hidden" accept=".xls,.xlsx,.csv"></label>
+          <p class="hint" style="margin:4px 0 10px">Only for days the daily email didn't cover. In Lighthouse, run <i>Sales Summary by Item</i> for <b>one day</b> and export it. Then load the file here and check the day. For trends, you can pick many old one-day reports at once: they go to the sales history only, with the day read from each file name.</p>
+          <label class="btn primary block">Import SkyTab sales reports<input type="file" id="salesFile" class="hidden" accept=".xls,.xlsx,.csv" multiple></label>
         </div>
         <div>
           <b>Send barcodes to SkyTab</b>
@@ -1403,24 +1403,117 @@ function splitPos(s) { return String(s || '').split(/[,\n;]/).map(x => x.trim())
 
 /* ---------------------------------------- SkyTab sales import (by hand, for days the daily email missed) */
 // The sheet does the matching, with the same rules as the daily email (departments, recipes, supplies).
+// One file opens the full preview (it can take sales off inventory). Several files go to the sales history only.
 $('#salesFile').onchange = async e => {
-  const f = e.target.files[0]; e.target.value = '';
-  if (!f) return;
+  const files = [...e.target.files]; e.target.value = '';
+  if (!files.length) return;
   if (!isManager()) return toast('Importing sales needs the manager PIN', { bad: true });
   if (isDemo()) return toast('Not available in demo mode. Connect to your Google Sheet to use this.', { bad: true });
-  let sheetsIn;
-  try { sheetsIn = await readSheetFile(f); } catch (err) { return toast(err.message, { bad: true }); }
-  const s = sheetsIn.find(x => tableFrom(x.rows, ['item', 'item name', 'menu item']));
-  if (!s) return toast("Couldn't find an Item column. Use SkyTab's Sales Summary by Item report.", { bad: true, ms: 6000 });
-  // Only plain text and numbers go to the sheet.
-  const rows = s.rows.slice(0, 5000).map(r => r.slice(0, 30).map(v => (typeof v === 'number' ? v : String(v === undefined || v === null ? '' : v))));
-  salesPreview(f.name, rows);
+  if (files.length > 1) return salesBatch(files.slice(0, 120));
+  let rows;
+  try { rows = await salesRowsOf(files[0]); } catch (err) { return toast(err.message, { bad: true, ms: 6000 }); }
+  salesPreview(files[0].name, rows);
 };
 
+async function salesRowsOf(f) {
+  const s = (await readSheetFile(f)).find(x => tableFrom(x.rows, ['item', 'item name', 'menu item']));
+  if (!s) throw new Error("Couldn't find an Item column. Use SkyTab's Sales Summary by Item report.");
+  // Only plain text and numbers go to the sheet.
+  return s.rows.slice(0, 5000).map(r => r.slice(0, 30).map(v => (typeof v === 'number' ? v : String(v === undefined || v === null ? '' : v))));
+}
+
 const localDay = d => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+const showDay = ymd => { const [y, m, d] = ymd.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric', year: '2-digit' }); };
+
+// SkyTab names its exports by date: sales-summary-by-item-08_01_26-08_23_26.xls is Aug 1 to Aug 23 (month_day_year).
+// Returns {from, to} as yyyy-mm-dd (the same day for a one-day report), or null when the name has no date.
+function daysFromName(name) {
+  const s = String(name || '');
+  const ymd = (y, m, d) => {
+    y = Number(y); if (y < 100) y += 2000;
+    const dt = new Date(y, Number(m) - 1, Number(d));
+    return dt.getFullYear() === y && dt.getMonth() === Number(m) - 1 && dt.getDate() === Number(d) ? localDay(dt) : null;
+  };
+  let found = [...s.matchAll(/(?:^|\D)(\d{1,2})[_.-](\d{1,2})[_.-](\d{4}|\d{2})(?!\d)/g)].map(m => ymd(m[3], m[1], m[2]));
+  if (!found.filter(Boolean).length) found = [...s.matchAll(/(?:^|\D)(\d{4})[_.-](\d{1,2})[_.-](\d{1,2})(?!\d)/g)].map(m => ymd(m[1], m[2], m[3]));
+  found = found.filter(Boolean).sort();
+  if (found.length) return { from: found[0], to: found[found.length - 1] };
+  const mo = s.match(/(?:^|\D)(\d{4})[_.-](\d{1,2})(?!\d)/); // a whole month, like sales-summary-by-item-2025-07
+  if (mo && ymd(mo[1], mo[2], 1)) return { from: ymd(mo[1], mo[2], 1), to: localDay(new Date(Number(mo[1]), Number(mo[2]), 0)) };
+  return null;
+}
+
+// Many old one-day reports at once, straight to the Sales tab (for trends). Nothing comes off inventory.
+async function salesBatch(files) {
+  const sh = openSheet(`Sales history · ${files.length} files`, '');
+  sh.body.innerHTML = '<div class="empty"><span class="spin"></span> Reading the reports…</div>';
+  let have;
+  try {
+    const r = await api('salesDays', {});
+    if (!r.ok) throw new Error(r.error);
+    have = new Set(r.days);
+  } catch (e) { sh.body.innerHTML = `<div class="empty">${esc(e instanceof NetError ? 'No connection' : e.message)}</div>`; return; }
+  const list = [];
+  for (const f of files) {
+    const r = { name: f.name, span: daysFromName(f.name), rows: null, day: '', done: false, msg: '' };
+    try { r.rows = await salesRowsOf(f); } catch (e) { r.msg = e.message; }
+    if (r.span && r.span.from === r.span.to) r.day = r.span.from;
+    list.push(r);
+  }
+  // By day; for two files of the same day, the original comes before a re-download like "... (1).xls".
+  list.sort((a, b) => (a.day || '9').localeCompare(b.day || '9') || a.name.length - b.name.length || a.name.localeCompare(b.name));
+  const today = localDay(new Date());
+  let busy = false;
+  // What happens to each file: {go: true} gets saved, anything else is skipped with a reason.
+  const statusOf = (r, i) => {
+    if (r.done) return { tag: 'ok', text: 'Saved' };
+    if (!r.rows) return { tag: 'warn', text: r.msg };
+    if (r.span && r.span.from !== r.span.to) return { tag: 'warn', text: `Covers ${showDay(r.span.from)} to ${showDay(r.span.to)}. Trends need one day per file.` };
+    if (r.msg) return { tag: 'low', text: r.msg };
+    if (!r.day) return { tag: 'warn', text: 'No date in the file name. Pick the day it covers.' };
+    if (r.day > today) return { tag: 'warn', text: "That day hasn't happened yet" };
+    if (have.has(r.day)) return { tag: 'ok', text: 'Already in the sales history' };
+    if (list.slice(0, i).some(x => x.day === r.day && !(x.span && x.span.from !== x.span.to) && x.rows)) return { tag: 'warn', text: 'Same day as another file' };
+    return { go: true, text: 'Will be saved' };
+  };
+  const draw = () => {
+    const st = list.map(statusOf);
+    const n = st.filter(s => s.go).length;
+    sh.body.innerHTML = `
+      <p class="hint">These go to the sales history only, for trends. Nothing comes off inventory. To take a day off inventory, load its file by itself.</p>
+      <div class="list">${list.map((r, i) => `<div class="li"><div class="grow">
+        <div class="nm">${r.day ? esc(showDay(r.day)) : esc(r.name)}</div>
+        <div class="sub">${esc(r.name)}</div>
+        <div style="margin-top:4px">${st[i].go ? `<span class="small-note">${esc(st[i].text)}</span>` : `<span class="tag ${st[i].tag}">${esc(st[i].text)}</span>`}</div></div>
+        ${r.rows && !r.done && !(r.span && r.span.from !== r.span.to) ? `<input class="t" type="date" data-day="${i}" value="${esc(r.day)}" max="${today}" style="width:auto" ${busy ? 'disabled' : ''}>` : ''}</div>`).join('')}</div>
+      <button class="btn primary block" type="button" id="saveBatch" style="margin-top:14px" ${n && !busy ? '' : 'disabled'}>${busy ? '<span class="spin"></span> Saving…' : n ? `Save ${n} day${n === 1 ? '' : 's'} to the sales history` : 'Nothing new to save'}</button>`;
+    $$('[data-day]', sh.body).forEach(inp => inp.onchange = () => { const r = list[Number(inp.dataset.day)]; r.day = inp.value; r.msg = ''; draw(); });
+    $('#saveBatch', sh.body).onclick = save;
+  };
+  const save = async () => {
+    busy = true; draw();
+    let saved = 0, stopped = false;
+    for (let i = 0; i < list.length && !stopped; i++) {
+      const r = list[i];
+      if (!statusOf(r, i).go) continue;
+      try {
+        const res = await api('importSales', { rows: r.rows, day: r.day, historyOnly: true });
+        if (res.ok) { r.done = true; have.add(r.day); saved++; }
+        else if (res.code === 'duplicate_import') have.add(r.day);
+        else r.msg = res.error || 'Not saved';
+      } catch (e) { r.msg = e instanceof NetError ? 'No connection' : e.message; stopped = e instanceof NetError; }
+      $('#saveBatch', sh.body).innerHTML = `<span class="spin"></span> Saved ${saved}…`;
+    }
+    busy = false; draw();
+    toast(stopped ? `Saved ${saved} days, then lost the connection. Load the files again to finish.` : `${saved} day${saved === 1 ? '' : 's'} saved to the sales history`, { bad: stopped, ms: 6000 });
+  };
+  draw();
+}
 
 function salesPreview(fileName, rows) {
-  let day = localDay(new Date(Date.now() - 86400000));
+  const span = daysFromName(fileName);
+  const manyDays = !!(span && span.from !== span.to);
+  let day = span ? span.to : localDay(new Date(Date.now() - 86400000));
   const sh = openSheet('SkyTab sales import', '');
   const fail = e => toast(e instanceof NetError ? 'No connection — try again with signal' : e.message, { bad: true, ms: 6000 });
   const load = async () => {
@@ -1434,6 +1527,7 @@ function salesPreview(fileName, rows) {
   const draw = p => {
     sh.body.innerHTML = `
       <div class="banner info"><b>${esc(fileName)}</b> · ${p.count} lines</div>
+      ${manyDays ? `<div class="banner warn">The file name says this report covers ${esc(showDay(span.from))} to ${esc(showDay(span.to))}. Sales history needs one day per report, so it can only come off inventory.</div>` : ''}
       <div class="field"><label class="f" for="sDay">The one day this report covers</label><input class="t" type="date" id="sDay" value="${esc(day)}" max="${localDay(new Date())}"></div>
       ${p.importedOn ? `<div class="banner warn">Sales for ${esc(p.day)} were already taken off on ${esc(p.importedOn)}. Importing again would take them off twice.</div>` : ''}
       <h3>Comes off inventory (${p.lines.length})</h3>
@@ -1448,7 +1542,7 @@ function salesPreview(fileName, rows) {
       ${p.other.length ? `<p class="small-note">Departments the sheet doesn't know: ${esc(p.other.join(', '))}. Linked items in them still come off.</p>` : ''}
       <p class="small-note">Food-night sales only take off Shared items. Kitchen-only items and supplies are counted by hand.</p>
       <button class="btn primary block" type="button" id="applySales" style="margin-top:14px">${p.lines.length ? `Take ${p.lines.length} items off inventory` : 'Save this day (nothing comes off)'}</button>
-      <button class="btn block" type="button" id="historyOnly" style="margin-top:8px" ${p.inHistory ? 'disabled' : ''}>${p.inHistory ? 'This day is already in the sales history' : 'Only save to sales history (an old day)'}</button>`;
+      ${manyDays ? '' : `<button class="btn block" type="button" id="historyOnly" style="margin-top:8px" ${p.inHistory ? 'disabled' : ''}>${p.inHistory ? 'This day is already in the sales history' : 'Only save to sales history (an old day)'}</button>`}`;
     $('#sDay', sh.body).onchange = e => { if (e.target.value) { day = e.target.value; load(); } };
     $$('[data-link]', sh.body).forEach(b => b.onclick = async () => {
       const pos = b.dataset.link;
@@ -1477,7 +1571,7 @@ function salesPreview(fileName, rows) {
       } catch (e) { btn.disabled = false; btn.textContent = 'Try again'; fail(e); }
     };
     $('#applySales', sh.body).onclick = e => apply(e.currentTarget, false);
-    $('#historyOnly', sh.body).onclick = async e => {
+    if (!manyDays) $('#historyOnly', sh.body).onclick = async e => {
       const btn = e.currentTarget;
       btn.disabled = true;
       try {
