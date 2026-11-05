@@ -155,6 +155,7 @@ nav.tabs .badge { position: absolute; margin-left: 22px; margin-top: -2px; backg
 .toast button { background: none; border: 0; color: #8fb2ff; font-weight: 700; }
 .toast span { flex: 1; }
 
+body:not(.is-mgr) .mgr-only { display: none !important; }
 table.prev { width: 100%; border-collapse: collapse; font-size: 14px; }
 table.prev th, table.prev td { padding: 7px 6px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
 table.prev td.n, table.prev th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -222,6 +223,7 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
     <div id="countIdle">
       <h2>Inventory count</h2>
       <p class="hint">Walk the bar and scan every bottle, can or case. Each scan adds one. Type a number for anything without a barcode or for partial bottles (0.5). When you finish, the counts replace what's on the sheet. Items you skip stay the same.</p>
+      <p class="hint" data-skytab><b>First:</b> import the SkyTab sales report up to today (More tab). Otherwise drinks that were sold show up as missing in the shrinkage report.</p>
       <button class="btn primary block" type="button" id="startCount">Start a count</button>
     </div>
     <div id="countLive" class="hidden">
@@ -290,9 +292,18 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
     <h3>Reports</h3>
     <div class="card stack">
       <button class="btn block" type="button" id="exportExcel">Download inventory (Excel)</button>
+      <button class="btn block mgr-only" type="button" id="showReport">Shrinkage report</button>
       <button class="btn block" type="button" id="showLog">Recent activity</button>
     </div>
-    <p class="hint" style="text-align:center"><span id="footName"></span> · Inventory scanner v1.1<br><a href="https://vfw9509.github.io/inventory/setup.html" style="color:inherit">Set this up for another Post</a></p>
+
+    <div class="mgr-only">
+      <h3>People</h3>
+      <div class="card stack">
+        <p class="hint" style="margin:0">Give each person their own PIN, so the log shows who really did what. Turn a PIN off when someone leaves.</p>
+        <button class="btn block" type="button" id="showStaff">Staff &amp; PINs</button>
+      </div>
+    </div>
+    <p class="hint" style="text-align:center"><span id="footName"></span> · Inventory scanner v1.2<br><a href="https://vfw9509.github.io/inventory/setup.html" style="color:inherit">Set this up for another Post</a></p>
   </section>
 </main>
 
@@ -510,7 +521,7 @@ const Demo = {
         });
         out = { ok: true, results, items: Object.values(changed) }; break;
       }
-      default: out = { ok: false, error: 'Unknown action' };
+      default: out = { ok: false, error: 'Not available in demo mode. Connect to your Google Sheet to use this.' };
     }
     db.log = db.log.slice(0, 500);
     save(LS.demo, db);
@@ -555,6 +566,9 @@ async function pull(force, quiet) {
     const r = await api('items');
     if (!r.ok) { S.error = r.error; renderPill(); if (force) toast(r.error, { bad: true }); return; }
     S.role = r.role; S.error = null; S.online = true;
+    // A PIN that belongs to one person comes back with their name: that's the name the Log uses.
+    S.me = r.name || null;
+    if (S.me && S.cfg.user !== S.me) { S.cfg.user = S.me; save(LS.cfg, S.cfg); }
     // Keep optimistic values for anything still waiting to sync.
     const pending = pendingDeltaById();
     S.items = r.items.map(it => pending[it.id] ? Object.assign({}, it, { onHand: applyPending(it.onHand, pending[it.id]) }) : it);
@@ -657,12 +671,13 @@ function renderPill() {
   let cls = '', txt;
   if (!S.cfg.api && !S.cfg.demo) { cls = 'off'; txt = 'Not set up'; }
   else if (isDemo()) { txt = 'Demo'; cls = S.queue.length ? 'wait' : ''; }
-  else if (S.error) { cls = 'off'; txt = S.error === 'Wrong PIN' ? 'Wrong PIN' : 'Error'; }
+  else if (S.error) { cls = 'off'; txt = S.error === 'Wrong PIN' ? 'Wrong PIN' : /busy/i.test(S.error) ? 'Sheet busy' : 'Error'; }
   else if (S.queue.length) { cls = 'wait'; txt = S.online ? (S.syncing ? 'Saving…' : S.queue.length + ' waiting') : 'Offline · ' + S.queue.length; }
   else if (!S.online) { cls = 'off'; txt = 'Offline'; }
   else { cls = 'live'; txt = S.role === 'manager' ? 'Live · Mgr' : 'Live'; }
   p.className = 'pill ' + cls;
   $('span', p).textContent = txt;
+  document.body.classList.toggle('is-mgr', isManager());
 }
 $('#syncPill').onclick = () => {
   if (S.error && S.error !== 'Wrong PIN') toast(S.error, { bad: true, ms: 6000 });
@@ -1203,7 +1218,8 @@ const stamp = () => new Date().toISOString().slice(0, 10);
 $('#exportExcel').onclick = () => exportExcel(S.items.map(i => ({
   Name: i.name, Category: i.category, Unit: i.unit, 'On Hand': num(i.onHand), Par: num(i.par), 'To Order': toOrder(i),
   Cost: num(i.cost), Value: round2((num(i.onHand) || 0) * (num(i.cost) || 0)), UPC: i.upc, 'Case UPC': i.caseUpc, 'Case Qty': num(i.caseQty),
-  'POS Names': i.posNames, 'Last Counted': i.lastCounted ? new Date(i.lastCounted).toLocaleDateString() : ''
+  ...(POST.skytab ? { 'POS Names': i.posNames } : {}),
+  'Last Counted': i.lastCounted ? new Date(i.lastCounted).toLocaleDateString() : ''
 })), `${FILE_TAG}_Inventory_${stamp()}.xlsx`, 'Inventory');
 $('#orderExcel').onclick = () => exportExcel(orderRows().map(i => ({ Category: i.category, Item: i.name, 'On Hand': num(i.onHand), Par: num(i.par), Order: Math.ceil(toOrder(i)) })), `${FILE_TAG}_Order_${stamp()}.xlsx`, 'Order');
 
@@ -1394,18 +1410,133 @@ $('#showLog').onclick = async () => {
   } catch (e) { sh.body.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 };
 
+/* =========================================================== staff & PINs (manager) */
+$('#showStaff').onclick = async () => {
+  const sh = openSheet('Staff & PINs', '<div class="empty"><span class="spin"></span></div>');
+  let people = [];
+  const fail = e => toast(e instanceof NetError ? 'No connection' : e.message, { bad: true, ms: 5000 });
+  const send = async (person, done) => {
+    try {
+      const r = await api('saveStaff', { person });
+      if (!r.ok) throw new Error(r.error);
+      people = r.people;
+      draw(done(r.person));
+    } catch (e) { fail(e); }
+  };
+  const draw = flash => {
+    sh.body.innerHTML = `
+      ${flash ? `<div class="banner good">${flash}</div>` : ''}
+      ${people.some(p => p.active) ? '' : '<div class="banner warn">When you add the first person, the shared staff PIN stops working. Add everyone who uses the app, then hand out their PINs.</div>'}
+      <div class="list">${people.map((p, i) => `
+        <div class="li"><div class="grow"><b>${esc(p.name)}</b>
+          ${p.role === 'manager' ? '<span class="tag ok">MANAGER</span>' : ''} ${p.active ? '' : '<span class="tag warn">OFF</span>'}
+          <div class="small-note">PIN <span data-pin="${i}">••••</span></div></div>
+          <button class="btn small" type="button" data-show="${i}">Show</button>
+          <button class="btn small" type="button" data-edit="${i}">Change</button></div>`).join('') || '<div class="empty">No one has their own PIN yet.</div>'}</div>
+      <h3>Add a person</h3>
+      <form class="stack" id="addPerson" autocomplete="off">
+        <div><label class="f" for="pName">Name</label><input class="t" id="pName" placeholder="First and last name" autocomplete="off"></div>
+        <div class="grid2">
+          <div><label class="f" for="pRole">Can do</label><select class="t" id="pRole"><option value="staff">Staff</option><option value="manager">Manager</option></select></div>
+          <div><label class="f" for="pPin">PIN</label><input class="t" id="pPin" inputmode="numeric" placeholder="Blank = make one" autocomplete="off"></div>
+        </div>
+        <button class="btn primary block" type="submit">Add</button>
+      </form>
+      <p class="small-note">Staff can scan, receive, remove and count. Managers can also edit items, import sales, see reports and manage PINs. You can also edit the Staff tab in the Google Sheet. Your master manager PIN always works.</p>`;
+    $$('[data-show]', sh.body).forEach(b => b.onclick = () => {
+      const span = $(`[data-pin="${b.dataset.show}"]`, sh.body);
+      const showing = span.textContent !== '••••';
+      span.textContent = showing ? '••••' : people[b.dataset.show].pin;
+      b.textContent = showing ? 'Show' : 'Hide';
+    });
+    $$('[data-edit]', sh.body).forEach(b => b.onclick = () => {
+      const p = people[b.dataset.edit];
+      const ed = openSheet(p.name, `<div class="stack">
+        <button class="btn block" type="button" id="eNew">Give ${esc(p.name)} a new PIN</button>
+        <button class="btn block" type="button" id="eRole">Make ${p.role === 'manager' ? 'staff' : 'a manager'}</button>
+        <button class="btn block" type="button" id="eOn">${p.active ? 'Turn PIN off (left, or lost phone)' : 'Turn PIN back on'}</button></div>`);
+      $('#eNew', ed.body).onclick = () => { ed.close(); send({ name: p.name, newPin: true }, q => `${esc(q.name)}'s new PIN is <b>${esc(q.pin)}</b>. The old one stopped working. Give it to them in person.`); };
+      $('#eRole', ed.body).onclick = () => { ed.close(); send({ name: p.name, role: p.role === 'manager' ? 'staff' : 'manager' }, q => `${esc(q.name)} is now ${q.role === 'manager' ? 'a manager' : 'staff'}.`); };
+      $('#eOn', ed.body).onclick = () => {
+        if (p.active && !confirm(`Turn off ${p.name}'s PIN? It stops working right away.`)) return;
+        ed.close(); send({ name: p.name, active: !p.active }, q => `${esc(q.name)}'s PIN is ${q.active ? 'back on' : 'off'}.`);
+      };
+    });
+    $('#addPerson', sh.body).onsubmit = e => {
+      e.preventDefault();
+      const name = $('#pName', sh.body).value.trim();
+      if (!name) return toast('Type a name', { bad: true });
+      if (people.some(p => p.name.toLowerCase() === name.toLowerCase())) return toast(`${name} is already on the list. Tap Change instead.`, { bad: true, ms: 5000 });
+      send({ name, role: $('#pRole', sh.body).value, pin: $('#pPin', sh.body).value.trim() },
+        q => `Added ${esc(q.name)}. Their PIN is <b>${esc(q.pin)}</b>. Give it to them in person.`);
+    };
+  };
+  try {
+    const r = await api('staff');
+    if (!r.ok) throw new Error(r.error);
+    people = r.people;
+    draw();
+  } catch (e) { sh.body.innerHTML = `<div class="empty">${esc(e instanceof NetError ? 'No connection' : e.message)}</div>`; }
+};
+
+/* =========================================================== shrinkage report (manager) */
+$('#showReport').onclick = () => {
+  const day = d => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const money = n => (n < 0 ? '−$' : '$') + Math.abs(n).toFixed(2);
+  const sh = openSheet('Shrinkage report', `
+    <p class="hint">What went missing between counts. The app already takes off what came in${POST.skytab ? ', what SkyTab sold' : ''} and what was logged as removed, so what's left is spills, over-pouring, comps nobody logged, or theft.${POST.skytab ? ' Import SkyTab sales up to the day of a count <b>before</b> you count, or sold drinks show up as missing.' : ''}</p>
+    <div class="grid2">
+      <div><label class="f" for="rFrom">From</label><input class="t" type="date" id="rFrom" value="${day(new Date(Date.now() - 6 * 86400000))}"></div>
+      <div><label class="f" for="rTo">To</label><input class="t" type="date" id="rTo" value="${day(new Date())}"></div>
+    </div>
+    <button class="btn primary block" type="button" id="rRun" style="margin-top:10px">Show report</button>
+    <div id="rOut" style="margin-top:12px"></div>`);
+  const out = $('#rOut', sh.body);
+  const run = async () => {
+    out.innerHTML = '<div class="empty"><span class="spin"></span></div>';
+    try {
+      const r = await api('report', { from: $('#rFrom', sh.body).value, to: $('#rTo', sh.body).value });
+      if (!r.ok) throw new Error(r.error);
+      const t = r.totals;
+      const moved = i => [i.received ? 'in ' + fmt(i.received) : '', POST.skytab && i.sold ? 'sold ' + fmt(i.sold) : '',
+        i.removed ? 'removed ' + fmt(i.removed) : '', i.counts > 1 ? i.counts + ' counts' : ''].filter(Boolean).join(' · ');
+      out.innerHTML = `
+        <div class="banner ${t.missingValue < 0 ? 'bad' : 'good'}">Missing: <b>${money(Math.abs(t.missingValue))}</b> · Over: ${money(t.overValue)}
+          <div class="small-note">${t.counted} items counted · logged as removed (broken, comps): ${money(t.removedValue)}${t.notCounted ? ` · ${t.notCounted} items moved but weren't counted` : ''}</div></div>
+        ${r.items.length ? `<table class="prev"><thead><tr><th>Item</th><th class="n">Diff</th><th class="n">Value</th></tr></thead><tbody>
+          ${r.items.map(i => `<tr><td>${esc(i.name)}<div class="small-note">${esc(moved(i))}</div></td>
+            <td class="n" style="color:${i.diff < 0 ? 'var(--accent)' : i.diff > 0 ? 'var(--ok)' : 'inherit'}">${i.diff > 0 ? '+' : ''}${fmt(i.diff)}${i.pours ? `<div class="small-note">≈ ${Math.abs(i.pours)} pours</div>` : ''}</td>
+            <td class="n">${i.cost ? money(i.value) : '<span class="small-note">no cost</span>'}</td></tr>`).join('')}
+          </tbody></table>` : '<div class="empty">No counts were saved between these dates.</div>'}
+        ${r.people.length ? `<h3>By person</h3><table class="prev"><thead><tr><th>Name</th><th class="n">Counts</th><th class="n">Removed</th></tr></thead><tbody>
+          ${r.people.map(p => `<tr><td>${esc(p.name)}</td><td class="n">${p.counts}</td><td class="n">${fmt(p.removedUnits)}${p.removedValue ? `<div class="small-note">${money(p.removedValue)}</div>` : ''}</td></tr>`).join('')}
+          </tbody></table>` : ''}
+        ${r.items.length ? '<button class="btn block" type="button" id="rXls" style="margin-top:12px">Download Excel</button>' : ''}`;
+      if (r.items.length) $('#rXls', out).onclick = () => exportExcel(r.items.map(i => ({
+        Item: i.name, Category: i.category, Unit: i.unit, Received: i.received,
+        ...(POST.skytab ? { 'Sold (SkyTab)': i.sold } : {}),
+        Removed: i.removed, 'Count difference': i.diff, Pours: i.pours ?? '', Cost: i.cost, Value: i.value, Counts: i.counts,
+        'Last counted': new Date(i.lastCount).toLocaleDateString()
+      })), `${FILE_TAG}_Shrinkage_${r.from}_to_${r.to}.xlsx`, 'Shrinkage');
+    } catch (e) { out.innerHTML = `<div class="empty">${esc(e instanceof NetError ? 'No connection' : e.message)}</div>`; }
+  };
+  $('#rRun', sh.body).onclick = run;
+  run();
+};
+
 /* =========================================================== settings */
 function renderConn() {
   const c = S.cfg;
   const status = !c.api && !c.demo ? '<span class="tag low">NOT SET UP</span>'
     : isDemo() ? '<span class="tag warn">DEMO MODE</span>'
     : S.role ? `<span class="tag ok">CONNECTED · ${S.role === 'manager' ? 'MANAGER' : 'STAFF'}</span>` : '<span class="tag warn">NOT VERIFIED</span>';
+  const nameNote = S.me ? `Set by your PIN: you're signed in as <b>${esc(S.me)}</b>.` : 'Shows up in the log. Not needed if you have your own PIN.';
   $('#connCard').innerHTML = `
     <div class="row"><b class="grow">Connection</b>${status}</div>
     ${isDemo() ? '<div class="banner warn">Demo mode keeps data on this phone only. Paste the Google Sheet web app URL to go live.</div>' : ''}
     <form id="cfgForm" class="stack" autocomplete="off">
-      <div><label class="f" for="cfgUser">Your name</label><input class="t" id="cfgUser" value="${esc(c.user)}" placeholder="Shows up in the log" autocomplete="name"></div>
-      <div><label class="f" for="cfgPin">PIN</label><input class="t" id="cfgPin" type="password" inputmode="numeric" value="${esc(c.pin)}" placeholder="Staff or manager PIN" autocomplete="off"></div>
+      <div><label class="f" for="cfgPin">PIN</label><input class="t" id="cfgPin" type="password" inputmode="numeric" value="${esc(c.pin)}" placeholder="Your PIN" autocomplete="off"></div>
+      <div><label class="f" for="cfgUser">Your name</label><input class="t" id="cfgUser" value="${esc(c.user)}" placeholder="First and last name" autocomplete="name" ${S.me ? 'readonly' : ''}><div class="small-note">${nameNote}</div></div>
       <div><label class="f" for="cfgApi">Google Sheet web app URL</label><input class="t" id="cfgApi" value="${esc(c.api)}" placeholder="https://script.google.com/macros/s/…/exec" inputmode="url" autocapitalize="off" spellcheck="false"></div>
       <button class="btn primary block" type="submit">Save &amp; connect</button>
     </form>
@@ -1413,18 +1544,18 @@ function renderConn() {
       <button class="btn small" type="button" id="shareSetup" ${c.api ? '' : 'disabled'}>Share setup link</button>
       <button class="btn small" type="button" id="demoToggle">${c.demo && !c.api ? 'Leave demo' : 'Try demo mode'}</button>
     </div>
-    <p class="small-note">The setup link fills in the sheet URL for bartenders. It does not include the PIN; they type that themselves.</p>`;
+    <p class="small-note">The setup link fills in the sheet URL for bartenders. It does not include a PIN; each person types their own.</p>`;
   $('#cfgForm').onsubmit = async e => {
     e.preventDefault();
     const api_ = $('#cfgApi').value.trim();
     if (api_ && !/^https:\/\/script\.google(usercontent)?\.com\//.test(api_)) return toast('That URL should start with https://script.google.com/', { bad: true, ms: 5000 });
     S.cfg = { api: api_, pin: $('#cfgPin').value.trim(), user: $('#cfgUser').value.trim(), demo: S.cfg.demo && !api_ };
     save(LS.cfg, S.cfg);
-    S.role = null; S.error = null; S.lastPull = 0;
-    if (!S.cfg.user) toast('Add your name so the log shows who did what');
+    S.role = null; S.me = null; S.error = null; S.lastPull = 0;
     await pull(true);
     renderConn();
-    if (S.role) showView('scan');
+    if (S.role && !S.me && !S.cfg.user) toast('Add your name so the log shows who did what');
+    else if (S.role) showView('scan');
   };
   $('#shareSetup').onclick = async () => {
     const link = location.href.split('#')[0] + '#setup=' + encodeURIComponent(S.cfg.api);
