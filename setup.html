@@ -615,6 +615,7 @@ $('#copyCode').onclick = async () => {
     codeText = src
       .replace(/const STAFF_PIN = '[^']*';/, `const STAFF_PIN = '${pins.staff}';`)
       .replace(/const MANAGER_PIN = '[^']*';/, `const MANAGER_PIN = '${pins.mgr}';`)
+      .replace(/const SALES_EMAIL_SUBJECT = '[^']*';/, `const SALES_EMAIL_SUBJECT = 'Post ${String(st.number).replace(/[^\w -]/g, '')} Daily Sales Report';`)
       .replace(/^ \* VFW Post Bar Inventory Scanner backend.*$/m, ` * ${postName()}: Bar Inventory Scanner backend (Google Apps Script)`);
   } catch (e) { return msg('#s3msg', 'bad', 'Could not load the code. Check your internet connection and try again.'); }
   try {
