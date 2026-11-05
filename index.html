@@ -203,6 +203,7 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
         <input type="file" accept="image/*" capture="environment" id="photoScan" class="hidden">
       </label>
     </div>
+    <div id="scanDue"></div>
     <h3>This shift</h3>
     <div class="list" id="recentList"><div class="empty">Scan something to get started.</div></div>
   </section>
@@ -222,9 +223,10 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
   <section class="view" id="v-count">
     <div id="countIdle">
       <h2>Inventory count</h2>
-      <p class="hint">Walk the bar and scan every bottle, can or case. Each scan adds one. Type a number for anything without a barcode or for partial bottles (0.5). When you finish, the counts replace what's on the sheet. Items you skip stay the same.</p>
+      <div id="countDue"></div>
+      <p class="hint">Walk each storage spot and scan every bottle, can or case (each scan adds one), or type the number into the checklist. Partial bottles: 0.5. Kegs and syrup boxes: count only the <b>full</b> ones; the open one is tracked by sales. When you finish, the counts replace what's on the sheet. Items you skip stay the same.</p>
       <p class="hint" data-skytab><b>Count while the bar is closed</b>: before it opens (on event days, before the event starts) or after close. Drinks poured during a count make it look like bottles are missing.</p>
-      <button class="btn primary block" type="button" id="startCount">Start a count</button>
+      <div class="stack" id="countStart"></div>
     </div>
     <div id="countLive" class="hidden">
       <div class="reader-wrap short" id="wrap-count">
@@ -242,6 +244,7 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
       <button class="btn block" type="button" id="countPick">+ Count an item without a barcode</button>
       <h3 id="countHead">Counted</h3>
       <div class="list" id="countList"></div>
+      <div id="countTodo"></div>
       <div class="grid2" style="margin-top:14px">
         <button class="btn" type="button" id="countDiscard">Discard</button>
         <button class="btn good" type="button" id="countSave">Save count</button>
@@ -272,8 +275,13 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
           <div id="autoSales"><p class="hint" style="margin:4px 0 0">Loading…</p></div>
         </div>
         <div>
+          <b>Drink recipes</b>
+          <p class="hint" style="margin:4px 0 10px">For pitchers, mixed drinks and plates that use more than one item, or more than one pour: a pitcher is 4 pints of its keg, a rum and Coke is a shot of rum plus a drink from the Coke box.</p>
+          <button class="btn block" type="button" id="showRecipes">Drink recipes</button>
+        </div>
+        <div>
           <b>Take sales off inventory by hand</b>
-          <p class="hint" style="margin:4px 0 10px">Only for days the daily email didn't cover. In SkyTab, go to Reports → <i>Sales Summary by Item</i>, pick the dates since your last import, and export to Excel. Then load the file here.</p>
+          <p class="hint" style="margin:4px 0 10px">Only for days the daily email didn't cover. In Lighthouse, run <i>Sales Summary by Item</i> for <b>one day</b> and export it. Then load the file here and pick that day. Older days can go in as sales history only, for trends.</p>
           <label class="btn primary block">Import a SkyTab sales report<input type="file" id="salesFile" class="hidden" accept=".xls,.xlsx,.csv"></label>
         </div>
         <div>
@@ -291,6 +299,11 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
         <p class="hint" style="margin:4px 0 10px">Works with the starter list, <span data-skytab>SkyTab's <i>Menu Item Detail</i> export, </span>or any spreadsheet with a Name column.</p>
         <label class="btn block">Import items<input type="file" id="itemsFile" class="hidden" accept=".xls,.xlsx,.csv"></label>
       </div>
+      <div class="mgr-only">
+        <b>Storage spots</b>
+        <p class="hint" style="margin:4px 0 10px">Where things are kept, in the order you walk them. The count checklist groups items by spot.</p>
+        <button class="btn block" type="button" id="showSpots">Storage spots</button>
+      </div>
     </div>
 
     <h3>Reports</h3>
@@ -307,7 +320,7 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
         <button class="btn block" type="button" id="showStaff">Staff &amp; PINs</button>
       </div>
     </div>
-    <p class="hint" style="text-align:center"><span id="footName"></span> · Inventory scanner v1.3<br><a href="https://vfw9509.github.io/inventory/setup.html" style="color:inherit">Set this up for another Post</a></p>
+    <p class="hint" style="text-align:center"><span id="footName"></span> · Inventory scanner v1.4<br><a href="https://vfw9509.github.io/inventory/setup.html" style="color:inherit">Set this up for another Post</a></p>
   </section>
 </main>
 
@@ -338,9 +351,12 @@ const DEFAULT_CATEGORIES = ['Liquor', 'Wine', 'Bottle Beer', 'Can Beer', 'Draft 
 const UNITS = ['bottle', 'can', 'case', 'keg', 'each', 'box', 'bag', 'jar', 'lb'];
 const POUR_PRESETS = [
   ['Sold whole (beer, can, snack)', 1], ['750 mL bottle · 1.5 oz shots', 16], ['1 L bottle · 1.5 oz shots', 22],
-  ['1.75 L bottle · 1.5 oz shots', 39], ['½ bbl keg · 16 oz pints', 110], ['⅙ bbl keg · 16 oz pints', 36]
+  ['1.75 L bottle · 1.5 oz shots', 39], ['½ bbl keg · 16 oz pints', 124], ['¼ bbl keg · 16 oz pints', 62], ['⅙ bbl keg · 16 oz pints', 41]
 ];
-const LS = { cfg: 'vfwinv.cfg', items: 'vfwinv.items', queue: 'vfwinv.queue', recent: 'vfwinv.recent', count: 'vfwinv.count', demo: 'vfwinv.demo' };
+const DEFAULT_SPOTS = ['Back bar', 'Beer cooler', 'Walk-in cooler', 'Freezer', 'Storage room', 'Kitchen'];
+const COUNT_DAYS = [3, 0];  // Wednesday and Sunday bar counts (0 = Sunday)
+const AREAS = { bar: 'Bar', kitchen: 'Kitchen', shared: 'Shared' };
+const LS = { cfg: 'vfwinv.cfg', items: 'vfwinv.items', queue: 'vfwinv.queue', recent: 'vfwinv.recent', count: 'vfwinv.count', demo: 'vfwinv.demo', spots: 'vfwinv.spots' };
 
 /* =========================================================== utils */
 const $ = (s, el = document) => el.querySelector(s);
@@ -438,6 +454,7 @@ const S = {
   cfg: load(LS.cfg, { api: DEFAULT_API, pin: '', user: '', demo: false }),
   role: null,
   items: load(LS.items, []),
+  spots: load(LS.spots, DEFAULT_SPOTS),
   queue: load(LS.queue, []),
   recent: load(LS.recent, []),
   count: load(LS.count, null),
@@ -451,6 +468,18 @@ const S = {
 const isDemo = () => !S.cfg.api && S.cfg.demo;
 const isManager = () => S.role === 'manager';
 function persistItems() { save(LS.items, S.items); }
+// Bartenders work Bar and Shared items, kitchen people Kitchen and Shared. Managers see everything.
+const myAreas = () => isManager() ? ['bar', 'kitchen', 'shared'] : S.role === 'kitchen' ? ['kitchen', 'shared'] : ['bar', 'shared'];
+const areaOf = it => it.area || 'bar';
+const isMine = it => myAreas().includes(areaOf(it));
+const visibleItems = () => S.items.filter(isMine);
+const isContainer = it => it.kind === 'keg' || it.kind === 'box';
+const openLeft = it => { const v = num(it.openLeft); return v === null ? 1 : Math.max(v, 0); };
+const unopened = it => round2((num(it.onHand) || 0) - openLeft(it));
+const containerWord = it => it.kind === 'keg' ? 'keg' : 'box';
+const containerWords = it => it.kind === 'keg' ? 'kegs' : 'boxes';
+// Short line for kegs and syrup boxes: "2 full + open one 40% left".
+const containerLine = it => `${fmt(unopened(it))} full + open one ${Math.round(Math.min(openLeft(it), 1) * 100)}% left`;
 
 function findByCode(code) {
   if (!code) return null;
@@ -478,13 +507,16 @@ function categories() {
 const Demo = {
   db() { return load(LS.demo, null) || this.seed(); },
   seed() {
-    const mk = (name, category, unit, onHand, par, pours, posNames) => ({ id: 'D' + uid(), name, category, unit, upc: '', caseUpc: '', caseQty: '', onHand, par, cost: '', posNames: posNames || name, poursPerUnit: pours, lastCounted: '', updated: new Date().toISOString(), updatedBy: 'demo' });
+    const mk = (name, category, unit, onHand, par, pours, posNames, more) => Object.assign({ id: 'D' + uid(), name, category, unit, upc: '', caseUpc: '', caseQty: '', onHand, par, cost: '', posNames: posNames || name, poursPerUnit: pours, lastCounted: '', updated: new Date().toISOString(), updatedBy: 'demo', type: 'sold', area: 'bar', spot: 'Back bar', kind: '', openLeft: '' }, more);
     const db = { items: [
-      mk('Bud Light (bottle)', 'Bottle Beer', 'bottle', 30, 48, 1, 'Bud Light'),
-      mk('Coors Light (bottle)', 'Bottle Beer', 'bottle', 52, 48, 1, 'Coors Light'),
+      mk('Bud Light (bottle)', 'Bottle Beer', 'bottle', 30, 48, 1, 'Bud Light', { spot: 'Beer cooler' }),
+      mk('Coors Light (bottle)', 'Bottle Beer', 'bottle', 52, 48, 1, 'Coors Light', { spot: 'Beer cooler' }),
+      mk('Bud Light ½ keg', 'Draft Beer', 'keg', 1.6, 2, 124, 'Bud Light Draft', { kind: 'keg', openLeft: 0.6, spot: 'Walk-in cooler' }),
       mk('Crown Royal 750 mL', 'Liquor', 'bottle', 1, 4, 16, 'Crown Royal'),
       mk('Captain Morgan 750 mL', 'Liquor', 'bottle', 2, 2, 16, 'Capt Morgan, Rum & Coke'),
-      mk('Coke (can)', 'N/A Bev', 'can', 20, 24, 1, 'Coke')
+      mk('Coke (can)', 'N/A Bev', 'can', 20, 24, 1, 'Coke', { spot: 'Beer cooler' }),
+      mk('Plastic cups (sleeve)', 'Supplies', 'sleeve', 6, 4, 1, '', { type: 'supply', area: 'shared', spot: 'Storage room', posNames: '' }),
+      mk('Hamburger patties (case)', 'Kitchen', 'case', 2, 2, 40, '', { area: 'kitchen', spot: 'Freezer', posNames: '' })
     ], log: [] };
     save(LS.demo, db); return db;
   },
@@ -495,7 +527,8 @@ const Demo = {
     let out;
     switch (action) {
       case 'ping': out = { ok: true, role: 'manager' }; break;
-      case 'items': out = { ok: true, role: 'manager', items: db.items }; break;
+      case 'items': out = { ok: true, role: 'manager', items: db.items, spots: db.spots || DEFAULT_SPOTS }; break;
+      case 'saveSpots': db.spots = p.spots.map(s => String(s).trim()).filter(Boolean); out = { ok: true, spots: db.spots }; break;
       case 'log': out = { ok: true, entries: db.log.filter(e => !p.itemId || e.id === p.itemId).slice(0, p.limit || 100) }; break;
       case 'lookup': out = { ok: true, product: await lookupDirect(p.upc) }; break;
       case 'saveItem': {
@@ -518,9 +551,10 @@ const Demo = {
         const changed = {}; const results = [];
         p.ops.forEach(o => {
           const it = db.items.find(i => i.id === o.id); if (!it) { results.push({ opId: o.opId, ok: false, error: 'Item not found' }); return; }
-          const before = num(it.onHand) || 0; let after = o.mode === 'add' ? before + o.qty : o.mode === 'remove' ? before - o.qty : o.qty;
-          after = round2(after); it.onHand = after; if (o.mode === 'set') it.lastCounted = now; changed[it.id] = it;
-          log({ add: 'RECEIVED', remove: o.source === 'sales' ? 'SOLD (SkyTab)' : 'REMOVED', set: 'COUNT' }[o.mode], it, round2(after - before), o.note);
+          const before = num(it.onHand) || 0;
+          const w = withPending(it, [o]);
+          it.onHand = w.onHand; it.openLeft = w.openLeft; if (o.mode === 'set') it.lastCounted = now; changed[it.id] = it;
+          log({ add: 'RECEIVED', remove: o.source === 'sales' ? 'SOLD (SkyTab)' : 'REMOVED', set: 'COUNT', swap: it.kind === 'keg' ? 'KEG CHANGE' : 'BOX CHANGE' }[o.mode], it, round2(it.onHand - before), o.note);
           results.push({ opId: o.opId, ok: true });
         });
         out = { ok: true, results, items: Object.values(changed) }; break;
@@ -575,8 +609,9 @@ async function pull(force, quiet) {
     if (S.me && S.cfg.user !== S.me) { S.cfg.user = S.me; save(LS.cfg, S.cfg); }
     // Keep optimistic values for anything still waiting to sync.
     const pending = pendingDeltaById();
-    S.items = r.items.map(it => pending[it.id] ? Object.assign({}, it, { onHand: applyPending(it.onHand, pending[it.id]) }) : it);
+    S.items = r.items.map(it => pending[it.id] ? withPending(it, pending[it.id]) : it);
     persistItems();
+    if (Array.isArray(r.spots)) { S.spots = r.spots; save(LS.spots, S.spots); }
     S.lastPull = Date.now();
     if (force && !quiet) toast('Up to date · ' + S.items.length + ' items');
   } catch (e) {
@@ -592,16 +627,25 @@ function pendingDeltaById() {
   S.queue.forEach(o => { (m[o.id] = m[o.id] || []).push(o); });
   return m;
 }
-function applyPending(onHand, ops) {
-  let v = num(onHand) || 0;
-  ops.forEach(o => { v = o.mode === 'add' ? v + o.qty : o.mode === 'remove' ? v - o.qty : o.qty; });
-  return round2(v);
+// The item as it will be once these changes reach the sheet. Kegs and syrup boxes: a count is of full ones (what's
+// left in the open one is added on), and 'swap' means the open one ran out and a full one was tapped.
+function withPending(it, ops) {
+  let v = num(it.onHand) || 0;
+  let left = isContainer(it) ? openLeft(it) : null;
+  ops.forEach(o => {
+    if (o.mode === 'add') v += o.qty;
+    else if (o.mode === 'remove') { v -= o.qty; if (left !== null && o.source === 'sales') left = round2(left - o.qty); }
+    else if (o.mode === 'set') v = o.qty + Math.max(left || 0, 0);
+    else if (o.mode === 'swap' && left !== null) { v -= left; left = 1; }
+  });
+  return Object.assign({}, it, { onHand: round2(v) }, left !== null ? { openLeft: left } : {});
 }
 
 function stockChange(item, mode, qty, note, extra = {}) {
   const op = Object.assign({ opId: uid(), id: item.id, mode, qty: round2(qty), note: note || '', at: new Date().toISOString() }, extra);
   const before = num(item.onHand) || 0;
-  item.onHand = applyPending(before, [op]);
+  const w = withPending(item, [op]);
+  item.onHand = w.onHand; item.openLeft = w.openLeft;
   if (mode === 'set') item.lastCounted = op.at;
   persistItems();
   S.queue.push(op); save(LS.queue, S.queue);
@@ -635,7 +679,7 @@ function flush() {
         S.queue = S.queue.filter(o => !sent.has(o.opId));
         (r.results || []).filter(x => !x.ok).forEach(x => toast('Not saved: ' + x.error, { bad: true }));
         const pending = pendingDeltaById();
-        (r.items || []).forEach(it => upsertLocal(pending[it.id] ? Object.assign({}, it, { onHand: applyPending(it.onHand, pending[it.id]) }) : it));
+        (r.items || []).forEach(it => upsertLocal(pending[it.id] ? withPending(it, pending[it.id]) : it));
       }
       save(LS.queue, S.queue);
     } catch (e) {
@@ -660,11 +704,11 @@ function addRecent(r) {
 function undoRecent(opId) {
   const r = S.recent.find(x => x.opId === opId);
   const it = r && itemById(r.id);
-  if (!r || !it || r.undone) return;
+  if (!r || !it || r.undone || r.mode === 'swap') return;
   r.undone = true; save(LS.recent, S.recent);
   if (r.mode === 'add') stockChange(it, 'remove', r.qty, 'Undo');
   else if (r.mode === 'remove') stockChange(it, 'add', r.qty, 'Undo');
-  else stockChange(it, 'set', r.before, 'Undo count');
+  else stockChange(it, 'set', isContainer(it) ? round2(r.before - openLeft(it)) : r.before, 'Undo count');
   S.recent.shift(); // don't list the undo itself
   save(LS.recent, S.recent); renderRecent();
   toast('Undone');
@@ -793,17 +837,26 @@ function itemSheet(item, ctx = {}) {
   const sh = openSheet(item.name, '', { onClose: ctx.onClose });
   const draw = () => {
     const live = itemById(item.id) || item;
+    const box = isContainer(live);
+    const word = containerWord(live);
+    const words = containerWords(live);
+    const mine = isMine(live);
     sh.body.innerHTML = `
-      <div class="small-note" style="margin:-6px 0 10px">${esc([live.category, live.unit].filter(Boolean).join(' · '))}${live.upc ? ' · UPC ' + esc(live.upc) : ''}</div>
+      <div class="small-note" style="margin:-6px 0 10px">${esc([live.category, live.unit].filter(Boolean).join(' · '))}${live.upc ? ' · UPC ' + esc(live.upc) : ''}${live.spot ? ' · ' + esc(live.spot) : ''}${live.type === 'supply' ? ' · <span class="tag warn">SUPPLY</span>' : ''}</div>
       <div class="bignum">
-        <div><small>On hand</small><b>${fmt(live.onHand)}</b> <span class="small-note">${esc(live.unit || '')}</span></div>
+        ${box
+          ? `<div><small>Full ${words}</small><b>${fmt(unopened(live))}</b></div><div><small>Open ${word}</small><b>${Math.round(Math.min(openLeft(live), 1) * 100)}%</b> <span class="small-note">left</span></div>`
+          : `<div><small>On hand</small><b>${fmt(live.onHand)}</b> <span class="small-note">${esc(live.unit || '')}</span></div>`}
         <div><small>Par</small><b>${fmt(live.par)}</b></div>
-        <div><small>To order</small><b style="color:${isLow(live) ? 'var(--accent)' : 'inherit'}">${fmt(toOrder(live))}</b></div>
+        ${box ? '' : `<div><small>To order</small><b style="color:${isLow(live) ? 'var(--accent)' : 'inherit'}">${fmt(toOrder(live))}</b></div>`}
       </div>
+      ${mine ? `
+      ${box ? `<button class="btn primary block" type="button" data-act="swap" style="margin-top:12px">${word === 'keg' ? 'Keg changed (tapped a full one)' : 'Box changed (hooked up a full one)'}</button>
+        <p class="small-note">Tap this when the open ${word} runs out and you put on a new one. ${POST.skytab ? `SkyTab sales take the open ${word} down as drinks are rung up.` : ''}</p>` : ''}
       ${cq ? `<div class="seg" style="margin-top:12px" role="group" aria-label="Counting in"><button type="button" data-u="1" class="${caseMode ? '' : 'on'}">Single ${esc(live.unit || 'units')}</button><button type="button" data-u="c" class="${caseMode ? 'on' : ''}">Cases of ${cq}</button></div>` : ''}
       ${ctx.isCase && cq ? `<div class="banner info">You scanned the <b>case</b> barcode: 1 case = ${cq} ${esc(live.unit || 'units')}.</div>` : ''}
       <div class="field" style="margin-top:12px">
-        <label class="f" for="q">How many${caseMode && cq ? ' cases' : ''}?</label>
+        <label class="f" for="q">How many${caseMode && cq ? ' cases' : box ? ` full ${words}` : ''}?</label>
         <div class="stepper"><button type="button" data-step="-1" aria-label="Less">−</button><input id="q" type="number" inputmode="decimal" min="0" step="any" value="1"><button type="button" data-step="1" aria-label="More">+</button></div>
         <div class="small-note" id="qNote"></div>
       </div>
@@ -813,9 +866,10 @@ function itemSheet(item, ctx = {}) {
       </div>
       <div class="field">
         <label class="f" for="why">Reason (for removals, optional)</label>
-        <select class="t" id="why"><option value="">Used at the bar</option><option>Spilled / broken</option><option>Comp / donated</option><option>Moved to canteen / kitchen</option><option>Expired</option><option>Other</option></select>
+        <select class="t" id="why"><option value="">${areaOf(live) === 'kitchen' ? 'Used in the kitchen' : 'Used at the bar'}</option><option>Spilled / broken</option><option>Comp / donated</option><option>Moved to canteen / kitchen</option><option>Expired</option><option>Other</option></select>
       </div>
-      <button class="btn block" type="button" data-act="set" style="margin-top:12px">＝ Set on-hand to this number (count)</button>
+      <button class="btn block" type="button" data-act="set" style="margin-top:12px">${box ? `＝ Count: this many full ${words}` : '＝ Set on-hand to this number (count)'}</button>`
+      : `<div class="banner info" style="margin-top:12px">This is a ${esc(AREAS[areaOf(live)].toLowerCase())} item. ${areaOf(live) === 'kitchen' ? 'Kitchen people' : 'Bartenders'} and managers change it.</div>`}
       <div class="grid2" style="margin-top:12px">
         <button class="btn ghost small" type="button" data-act="hist">History</button>
         <button class="btn ghost small" type="button" data-act="edit">${isManager() ? 'Edit item' : 'Item details'}</button>
@@ -824,16 +878,22 @@ function itemSheet(item, ctx = {}) {
     const mult = () => (caseMode && cq ? cq : 1);
     const note = () => {
       const v = num(q.value) || 0;
-      $('#qNote', sh.body).textContent = caseMode && cq ? `= ${fmt(v * cq)} ${live.unit || 'units'}` : '';
+      if (q) $('#qNote', sh.body).textContent = caseMode && cq ? `= ${fmt(v * cq)} ${live.unit || 'units'}` : '';
     };
-    note();
-    q.oninput = note;
+    if (q) { note(); q.oninput = note; }
     $$('[data-step]', sh.body).forEach(b => b.onclick = () => { q.value = Math.max(0, (num(q.value) || 0) + Number(b.dataset.step)); note(); });
     $$('[data-u]', sh.body).forEach(b => b.onclick = () => { caseMode = b.dataset.u === 'c'; draw(); });
     $$('[data-act]', sh.body).forEach(b => b.onclick = () => {
       const act = b.dataset.act;
       if (act === 'hist') return historySheet(live);
       if (act === 'edit') return editSheet(live, { onSaved: () => draw() });
+      if (act === 'swap') {
+        if (!confirm(`Put on a full ${containerWord(live)} of ${live.name}? The open one is marked empty.`)) return;
+        const op = stockChange(live, 'swap', 0, '');
+        sh.close();
+        toast(`${live.name}: ${containerWord(live)} changed · ${fmt(unopened(itemById(live.id) || live))} full left`);
+        return op;
+      }
       const v = num(q.value);
       if (v === null || v < 0) return toast('Enter a number', { bad: true });
       const qty = round2(v * mult());
@@ -926,10 +986,27 @@ function renderItemForm(host, it, opts) {
           <div class="seg"><button type="button" class="on" data-scan="single">A single unit</button><button type="button" data-scan="case">A case / pack</button></div>
           <div id="caseRow" class="hidden row" style="margin-top:8px"><label class="f grow" style="margin:0">Units per case</label><input class="t" name="caseQtyNew" type="number" inputmode="numeric" style="width:100px" value="24"></div>
         </div>` : ''}
+      ${isManager() ? `
       <div class="grid2" style="margin-top:12px">
+        <div><label class="f">Type</label><select class="t" name="type"><option value="sold" ${it.type === 'supply' ? '' : 'selected'}>Sold</option><option value="supply" ${it.type === 'supply' ? 'selected' : ''}>Supply (count only)</option></select></div>
+        <div><label class="f">Area</label><select class="t" name="area">${Object.entries(AREAS).map(([k, l]) => `<option value="${k}" ${areaOf(it) === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      </div>
+      <div class="small-note">Supplies (cups, plates, spices) never come off with sales. Shared items are used by both the bar and the kitchen.</div>
+      <div class="field" style="margin-top:12px"><label class="f">Kept as</label><select class="t" name="kind">
+        <option value="" ${isContainer(it) ? '' : 'selected'}>Bottles, cans, cases or each</option>
+        <option value="keg" ${it.kind === 'keg' ? 'selected' : ''}>Keg (draft beer)</option>
+        <option value="box" ${it.kind === 'box' ? 'selected' : ''}>Syrup box (soda gun)</option></select></div>` : ''}
+      <div class="field" style="margin-top:12px"><label class="f">Kept where</label><select class="t" name="spot"><option value="">Not set</option>${[...new Set([...S.spots, it.spot].filter(Boolean))].map(s => `<option ${s === it.spot ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
+        <div class="small-note">Groups the item in the count checklist.</div></div>
+      <div class="grid2" style="margin-top:12px" id="ohPlain">
         <div><label class="f">${opts.isNew ? 'How many are here now?' : 'On hand'}</label><input class="t" name="onHand" type="number" inputmode="decimal" step="any" value="${esc(it.onHand ?? '')}" ${isManager() || opts.isNew ? '' : 'readonly'}><div class="small-note" id="ohNote">${opts.isNew ? 'single units' : ''}</div></div>
         <div><label class="f">Par (keep on hand)</label><input class="t" name="par" type="number" inputmode="decimal" step="any" value="${esc(it.par ?? '')}" ${mgr ? '' : 'readonly'}></div>
       </div>
+      ${isManager() ? `
+      <div class="grid2 hidden" style="margin-top:12px" id="ohBox">
+        <div><label class="f">Full ones (unopened)</label><input class="t" name="full" type="number" inputmode="decimal" step="any" value="${esc(isContainer(it) ? unopened(it) : '')}"></div>
+        <div><label class="f">Open one, % left</label><input class="t" name="pct" type="number" inputmode="numeric" min="0" max="100" value="${isContainer(it) ? Math.round(Math.min(openLeft(it), 1) * 100) : 100}"></div>
+      </div>` : ''}
       ${opts.isNew ? '' : `
       <div class="grid2" style="margin-top:12px">
         <div><label class="f">Single UPC</label><input class="t" name="upc" inputmode="numeric" value="${esc(it.upc || '')}" ${mgr ? '' : 'readonly'}></div>
@@ -944,7 +1021,7 @@ function renderItemForm(host, it, opts) {
         <div class="field"><label class="f">SkyTab sales per ${esc(it.unit || 'unit')}</label>
           <select class="t" name="pourPreset">${POUR_PRESETS.map(([l, v]) => `<option value="${v}" ${v === pours ? 'selected' : ''}>${esc(l)} (${v})</option>`).join('')}<option value="custom" ${POUR_PRESETS.some(p => p[1] === pours) ? '' : 'selected'}>Custom…</option></select>
           <input class="t ${POUR_PRESETS.some(p => p[1] === pours) ? 'hidden' : ''}" name="poursPerUnit" type="number" inputmode="decimal" step="any" value="${pours}" style="margin-top:8px">
-          <div class="small-note">How many SkyTab sales use up one ${esc(it.unit || 'unit')}. A 750 mL bottle pours about 16 shots.</div></div>` : ''}
+          <div class="small-note">How many SkyTab sales use up one ${esc(it.unit || 'unit')}. A 750 mL bottle pours about 16 shots. A keg: ½ bbl 124 pints, ¼ bbl 62, ⅙ bbl 41. A syrup box: how many drinks it makes (on the box label). Pitchers and mixed drinks: add a recipe in More → Drink recipes.</div></div>` : ''}
       </details>` : ''}
       ${mgr ? `<button class="btn primary block" type="submit" style="margin-top:14px">${opts.isNew ? 'Add item' : 'Save changes'}</button>` : '<p class="hint">Ask a manager to change item details.</p>'}
       ${!opts.isNew && isManager() ? '<button class="btn ghost block" type="button" data-del style="margin-top:8px;color:var(--accent)">Delete item</button>' : ''}
@@ -958,6 +1035,16 @@ function renderItemForm(host, it, opts) {
     $('#ohNote', f).textContent = scanAsCase ? 'cases (converted to single units)' : 'single units';
     if (scanAsCase && f.unit.value === 'bottle') f.unit.value = 'bottle';
   });
+  // Kegs and syrup boxes: on hand is typed as full ones plus how much is left in the open one.
+  const kindChanged = () => {
+    const box = !!(f.kind && f.kind.value);
+    $('#ohPlain [name=onHand]', f).closest('div').classList.toggle('hidden', box);
+    if ($('#ohBox', f)) $('#ohBox', f).classList.toggle('hidden', !box);
+    // Turning a plain item into a keg: its count most likely included the one on tap.
+    if (box && f.full.value === '') f.full.value = String(Math.max((num(f.onHand.value) || 0) - 1, 0));
+    if (box && ['bottle', 'each', ''].includes(f.unit.value)) f.unit.value = f.kind.value;
+  };
+  if (f.kind) { f.kind.onchange = kindChanged; kindChanged(); }
   if (f.pourPreset) f.pourPreset.onchange = () => {
     const c = f.pourPreset.value === 'custom';
     f.poursPerUnit.classList.toggle('hidden', !c);
@@ -992,9 +1079,16 @@ function renderItemForm(host, it, opts) {
       patch.caseQty = v('caseQty');
       if (isManager()) patch.onHand = v('onHand');
     }
+    patch.spot = v('spot');
     if (isManager()) {
       patch.cost = v('cost');
       if (POST.skytab) { patch.posNames = v('posNames'); patch.poursPerUnit = v('poursPerUnit'); }
+      Object.assign(patch, { type: v('type'), area: v('area'), kind: v('kind') });
+      if (patch.kind) {
+        const left = Math.min(Math.max(num(v('pct')) ?? 100, 0), 100) / 100;
+        patch.openLeft = left;
+        patch.onHand = round2((num(v('full')) || 0) + left);
+      }
     }
     const saved = await saveItemRemote(patch);
     btn.disabled = false;
@@ -1027,7 +1121,7 @@ function itemPicker(host, onPick, opts = {}) {
   const inp = $('input', host), list = $('.list', host);
   const draw = () => {
     const q = norm(inp.value);
-    let rows = S.items.filter(i => !q || norm(i.name).includes(q) || norm(i.category).includes(q));
+    let rows = (opts.all ? S.items : visibleItems()).filter(i => !q || norm(i.name).includes(q) || norm(i.category).includes(q));
     rows.sort((a, b) => (opts.preferNoUpc ? (!!a.upc - !!b.upc) : 0) || a.name.localeCompare(b.name));
     rows = rows.slice(0, 60);
     list.innerHTML = rows.length ? rows.map(i => `<button class="li" type="button" data-id="${esc(i.id)}"><div class="grow"><div class="nm">${esc(i.name)}</div><div class="sub">${esc(i.category || '')}${opts.preferNoUpc && !i.upc ? ' · no barcode yet' : ''}</div></div><div class="qty"><b>${fmt(i.onHand)}</b></div></button>`).join('')
@@ -1050,36 +1144,42 @@ function renderRecent() {
   const rows = S.recent.slice(0, 10);
   if (!rows.length) { host.innerHTML = '<div class="empty">Scan something to get started.</div>'; return; }
   host.innerHTML = rows.map(r => {
-    const verb = r.mode === 'add' ? `+${fmt(r.qty)} received` : r.mode === 'remove' ? `−${fmt(r.qty)} removed` : `counted ${fmt(r.qty)}`;
+    const verb = r.mode === 'add' ? `+${fmt(r.qty)} received` : r.mode === 'remove' ? `−${fmt(r.qty)} removed` : r.mode === 'swap' ? 'changed' : `counted ${fmt(r.qty)}`;
     const waiting = S.queue.some(o => o.opId === r.opId);
     return `<div class="li"><div class="grow"><div class="nm">${esc(r.name)}</div><div class="sub">${verb} · ${esc(timeAgo(r.at))}${waiting ? ' · <span class="tag warn">waiting</span>' : ''}${r.undone ? ' · undone' : ''}</div></div>
-      <div class="qty"><b>${fmt(r.after)}</b><span> now</span></div>${r.undone ? '' : `<button class="btn small ghost" type="button" data-undo="${esc(r.opId)}">Undo</button>`}</div>`;
+      <div class="qty"><b>${fmt(r.after)}</b><span> now</span></div>${r.undone || r.mode === 'swap' ? '' : `<button class="btn small ghost" type="button" data-undo="${esc(r.opId)}">Undo</button>`}</div>`;
   }).join('');
   $$('[data-undo]', host).forEach(b => b.onclick = () => undoRecent(b.dataset.undo));
 }
 
 /* =========================================================== items view */
 function renderItems() {
-  const cats = ['All', 'Low', ...categories().filter(c => S.items.some(i => i.category === c))];
+  const mine = visibleItems();
+  // Managers also get Bar / Kitchen / Shared / Supplies chips.
+  const extra = isManager() ? ['@bar', '@kitchen', '@shared', '@supply'].filter(c => mine.some(i => c === '@supply' ? i.type === 'supply' : areaOf(i) === c.slice(1))) : [];
+  const cats = ['All', 'Low', ...extra, ...categories().filter(c => mine.some(i => i.category === c))];
   if (!cats.includes(S.cat)) S.cat = 'All';
-  $('#catChips').innerHTML = cats.map(c => `<button type="button" class="chip ${c === S.cat ? 'on' : ''}" data-cat="${esc(c)}">${esc(c === 'Low' ? 'Below par' : c)}</button>`).join('');
+  const chipName = c => c === 'Low' ? 'Below par' : c === '@supply' ? 'Supplies' : c[0] === '@' ? AREAS[c.slice(1)] : c;
+  $('#catChips').innerHTML = cats.map(c => `<button type="button" class="chip ${c === S.cat ? 'on' : ''}" data-cat="${esc(c)}">${esc(chipName(c))}</button>`).join('');
   $$('#catChips [data-cat]').forEach(b => b.onclick = () => { S.cat = b.dataset.cat; renderItems(); });
+  const inCat = i => S.cat === 'All' || (S.cat === 'Low' ? isLow(i) : S.cat === '@supply' ? i.type === 'supply' : S.cat[0] === '@' ? areaOf(i) === S.cat.slice(1) : i.category === S.cat);
   const q = norm($('#itemSearch').value);
-  const rows = S.items
-    .filter(i => S.cat === 'All' || (S.cat === 'Low' ? isLow(i) : i.category === S.cat))
+  const rows = mine
+    .filter(inCat)
     .filter(i => !q || norm(i.name).includes(q) || norm(i.upc).includes(q) || norm(i.posNames).includes(q))
     .sort((a, b) => (a.category || '').localeCompare(b.category || '') || a.name.localeCompare(b.name));
+  const tags = i => [isManager() && areaOf(i) !== 'bar' ? AREAS[areaOf(i)] : '', i.type === 'supply' ? 'supply' : ''].filter(Boolean).map(t => ' · ' + esc(t)).join('');
   $('#itemList').innerHTML = rows.length ? rows.map(i => `
     <button class="li" type="button" data-id="${esc(i.id)}">
-      <div class="grow"><div class="nm">${esc(i.name)}</div><div class="sub">${esc(i.category || 'Uncategorized')}${i.upc || i.caseUpc ? '' : ' · no barcode'}</div></div>
+      <div class="grow"><div class="nm">${esc(i.name)}</div><div class="sub">${esc(i.category || 'Uncategorized')}${tags(i)}${isContainer(i) ? ' · ' + esc(containerLine(i)) : i.upc || i.caseUpc ? '' : ' · no barcode'}</div></div>
       ${isLow(i) ? '<span class="tag low">LOW</span>' : ''}
       <div class="qty"><b>${fmt(i.onHand)}</b><span> / ${fmt(i.par)}</span></div>
     </button>`).join('')
-    : `<div class="empty">${S.items.length ? 'No matches.' : 'No items yet. Scan a barcode, tap + Add, or import a spreadsheet from More.'}</div>`;
+    : `<div class="empty">${mine.length ? 'No matches.' : 'No items yet. Scan a barcode, tap + Add, or import a spreadsheet from More.'}</div>`;
   $$('#itemList [data-id]').forEach(b => b.onclick = () => itemSheet(itemById(b.dataset.id)));
-  const low = S.items.filter(isLow).length;
-  const value = S.items.reduce((s, i) => s + (num(i.onHand) || 0) * (num(i.cost) || 0), 0);
-  $('#itemsSummary').textContent = `${S.items.length} items · ${low} below par${value ? ' · stock value $' + value.toFixed(2) : ''}`;
+  const low = mine.filter(isLow).length;
+  const value = mine.reduce((s, i) => s + (num(i.onHand) || 0) * (num(i.cost) || 0), 0);
+  $('#itemsSummary').textContent = `${mine.length} items · ${low} below par${value ? ' · stock value $' + value.toFixed(2) : ''}`;
 }
 $('#itemSearch').oninput = renderItems;
 $('#addItemBtn').onclick = () => {
@@ -1088,23 +1188,82 @@ $('#addItemBtn').onclick = () => {
 };
 
 /* =========================================================== count view */
+const COUNT_AREAS = { bar: ['bar', 'shared'], kitchen: ['kitchen', 'shared'], all: ['bar', 'kitchen', 'shared'] };
+const countArea = () => (S.count && S.count.area) || (S.role === 'kitchen' ? 'kitchen' : isManager() ? 'all' : 'bar');
+const inCount = it => COUNT_AREAS[countArea()].includes(areaOf(it)) && isMine(it);
+// What the sheet says, in the terms a count uses: kegs and syrup boxes count full ones only.
+const sheetCount = it => isContainer(it) ? unopened(it) : num(it.onHand) || 0;
+const countSub = it => isContainer(it) ? `full ${containerWords(it)} · sheet says ${fmt(unopened(it))} full` : `sheet says ${fmt(it.onHand)}`;
+
+// The Wednesday and Sunday bar count. A count day runs from 6 am to 6 am the next morning.
+function barCountDue() {
+  if (!S.role || S.role === 'kitchen' || !S.items.some(i => areaOf(i) !== 'kitchen')) return null;
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 6);
+  if (now < start) start.setDate(start.getDate() - 1);
+  if (!COUNT_DAYS.includes(start.getDay())) return null;
+  const done = S.items.some(i => areaOf(i) !== 'kitchen' && i.lastCounted && new Date(i.lastCounted) >= start);
+  return { day: start.toLocaleDateString(undefined, { weekday: 'long' }), done };
+}
+function renderDue() {
+  const d = barCountDue();
+  const html = !d ? '' : d.done
+    ? `<div class="banner good">${esc(d.day)} bar count: saved. Thanks!</div>`
+    : `<div class="banner warn row"><span class="grow"><b>Bar count due today</b> (${esc(d.day)}).</span><button class="btn small" type="button" data-start-count="bar">Start</button></div>`;
+  $('#scanDue').innerHTML = S.count ? '' : html;
+  $('#countDue').innerHTML = html;
+}
+function startCount(area) {
+  S.count = { started: new Date().toISOString(), tally: {}, area };
+  save(LS.count, S.count);
+  showView('count');
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-start-count]'); if (b) startCount(b.dataset.startCount); });
+
 function renderCount() {
   const c = S.count;
+  renderDue();
   $('#countIdle').classList.toggle('hidden', !!c);
   $('#countLive').classList.toggle('hidden', !c);
-  if (!c) return;
+  if (!c) {
+    const opts = S.role === 'kitchen' ? [['kitchen', 'Start kitchen count']]
+      : isManager() ? [['bar', 'Start bar count'], ['kitchen', 'Start kitchen count'], ['all', 'Count everything']]
+        : [['bar', 'Start bar count']];
+    $('#countStart').innerHTML = opts.map(([a, l], i) => `<button class="btn ${i ? '' : 'primary'} block" type="button" data-start-count="${a}">${l}</button>`).join('');
+    return;
+  }
   const ids = Object.keys(c.tally);
-  $('#countHead').textContent = `Counted · ${ids.length} item${ids.length === 1 ? '' : 's'}`;
+  const label = { bar: 'Bar count', kitchen: 'Kitchen count', all: 'Full count' }[countArea()];
+  $('#countHead').textContent = `${label} · ${ids.length} counted`;
   $('#countList').innerHTML = ids.length ? ids.slice().reverse().map(id => {
     const it = itemById(id); if (!it) return '';
-    return `<div class="li"><div class="grow"><div class="nm">${esc(it.name)}</div><div class="sub">sheet says ${fmt(it.onHand)}</div></div>
+    return `<div class="li"><div class="grow"><div class="nm">${esc(it.name)}</div><div class="sub">${esc(countSub(it))}</div></div>
       <button class="mini" type="button" data-dec="${esc(id)}" aria-label="Minus one">−</button>
       <input class="count-n" type="number" inputmode="decimal" step="any" data-set="${esc(id)}" value="${esc(c.tally[id])}" aria-label="Count for ${esc(it.name)}" style="width:70px">
       <button class="mini" type="button" data-inc="${esc(id)}" aria-label="Plus one">+</button></div>`;
-  }).join('') : '<div class="empty">Nothing counted yet.</div>';
+  }).join('') : '<div class="empty">Nothing counted yet. Scan, or type numbers in the list below.</div>';
+
+  // Everything not counted yet, by where it's kept, in the order of the storage spots.
+  const todo = S.items.filter(it => inCount(it) && !(it.id in c.tally));
+  const order = [...S.spots, ...new Set(todo.map(i => i.spot).filter(s => s && !S.spots.includes(s))), ''];
+  const groups = order.map(s => [s, todo.filter(i => (i.spot || '') === s).sort((a, b) => a.name.localeCompare(b.name))]).filter(g => g[1].length);
+  $('#countTodo').innerHTML = todo.length ? `<h3>Not counted yet · ${todo.length}</h3>` + groups.map(([s, list]) => `
+    <details open style="margin-bottom:10px"><summary>${esc(s || 'No storage spot set')} · ${list.length}</summary>
+      <div class="list">${list.map(it => `<div class="li"><div class="grow"><div class="nm">${esc(it.name)}</div><div class="sub">${esc(countSub(it))}</div></div>
+        <input class="count-n" type="number" inputmode="decimal" step="any" min="0" data-todo="${esc(it.id)}" placeholder="–" aria-label="Count for ${esc(it.name)}" style="width:70px"></div>`).join('')}</div>
+    </details>`).join('') : (ids.length ? '<div class="banner good" style="margin-top:12px">Everything on the list is counted.</div>' : '');
+
   $$('[data-inc]').forEach(b => b.onclick = () => bump(b.dataset.inc, 1));
   $$('[data-dec]').forEach(b => b.onclick = () => bump(b.dataset.dec, -1));
   $$('[data-set]').forEach(i => i.onchange = () => { const v = num(i.value); if (v === null) delete S.count.tally[i.dataset.set]; else S.count.tally[i.dataset.set] = Math.max(0, v); save(LS.count, S.count); renderCount(); });
+  $$('[data-todo]').forEach(i => i.onchange = () => {
+    const v = num(i.value);
+    if (v === null) return;
+    // Keep the page where it is: the row moves up into Counted.
+    const y = window.scrollY;
+    S.count.tally[i.dataset.todo] = Math.max(0, v); save(LS.count, S.count); renderCount();
+    window.scrollTo(0, y);
+  });
 }
 function bump(id, n) {
   S.count.tally[id] = Math.max(0, round2((S.count.tally[id] || 0) + n));
@@ -1120,13 +1279,13 @@ function onCountCode(code) {
     unknownSheet(code, { onClose: () => { Cam.resume(); const h = findByCode(code); if (h) bump(h.item.id, h.mult); } });
     return;
   }
+  if (!isMine(hit.item)) { beep(false); toast(`${hit.item.name} is a ${AREAS[areaOf(hit.item)].toLowerCase()} item, not on this count`, { bad: true }); return; }
   beep(true);
   bump(hit.item.id, hit.mult);
   const fl = $('#countFlash');
   fl.textContent = `+${hit.mult}${hit.isCase ? ' (case)' : ''} ${hit.item.name} → ${fmt(S.count.tally[hit.item.id])}`;
   fl.classList.add('on'); clearTimeout(fl._t); fl._t = setTimeout(() => fl.classList.remove('on'), 1400);
 }
-$('#startCount').onclick = () => { S.count = { started: new Date().toISOString(), tally: {} }; save(LS.count, S.count); renderCount(); Cam.start('count', onCountCode); };
 $('#countManual').onsubmit = e => { e.preventDefault(); const c = normCode($('#countCode').value); $('#countCode').value = ''; if (c) onCountCode(c); };
 $('#countPick').onclick = async () => {
   const it = await pickItemSheet('Count an item');
@@ -1143,10 +1302,11 @@ $('#countSave').onclick = () => {
   const ids = Object.keys(S.count.tally);
   if (!ids.length) return toast('Nothing counted yet', { bad: true });
   const diffs = ids.map(id => ({ it: itemById(id), n: S.count.tally[id] })).filter(x => x.it);
+  const left = S.items.filter(it => inCount(it) && !(it.id in S.count.tally)).length;
   const sh = openSheet('Save count?', `
-    <p class="hint">These counts will replace the on-hand numbers in the sheet.</p>
+    <p class="hint">These counts will replace the on-hand numbers in the sheet.${left ? ` ${left} items on the list weren't counted; they stay as they are.` : ''}</p>
     <table class="prev"><thead><tr><th>Item</th><th class="n">Sheet</th><th class="n">Counted</th><th class="n">Diff</th></tr></thead><tbody>
-    ${diffs.map(d => { const df = round2(d.n - (num(d.it.onHand) || 0)); return `<tr><td>${esc(d.it.name)}</td><td class="n">${fmt(d.it.onHand)}</td><td class="n"><b>${fmt(d.n)}</b></td><td class="n" style="color:${df < 0 ? 'var(--accent)' : df > 0 ? 'var(--ok)' : 'inherit'}">${df > 0 ? '+' : ''}${fmt(df)}</td></tr>`; }).join('')}
+    ${diffs.map(d => { const was = sheetCount(d.it); const df = round2(d.n - was); return `<tr><td>${esc(d.it.name)}${isContainer(d.it) ? `<div class="small-note">full ${containerWords(d.it)}</div>` : ''}</td><td class="n">${fmt(was)}</td><td class="n"><b>${fmt(d.n)}</b></td><td class="n" style="color:${df < 0 ? 'var(--accent)' : df > 0 ? 'var(--ok)' : 'inherit'}">${df > 0 ? '+' : ''}${fmt(df)}</td></tr>`; }).join('')}
     </tbody></table>
     <button class="btn good block" type="button" id="doSave" style="margin-top:14px">Save ${diffs.length} counts</button>`);
   $('#doSave', sh.body).onclick = () => {
@@ -1159,7 +1319,7 @@ $('#countSave').onclick = () => {
 
 /* =========================================================== order view */
 function orderRows() {
-  return S.items.filter(isLow).sort((a, b) => (a.category || '').localeCompare(b.category || '') || a.name.localeCompare(b.name));
+  return visibleItems().filter(isLow).sort((a, b) => (a.category || '').localeCompare(b.category || '') || a.name.localeCompare(b.name));
 }
 function renderOrder() {
   const rows = orderRows();
@@ -1241,95 +1401,207 @@ $('#skytabExport').onclick = () => {
 };
 function splitPos(s) { return String(s || '').split(/[,\n;]/).map(x => x.trim()).filter(Boolean); }
 
-/* ---------------------------------------- SkyTab sales import */
+/* ---------------------------------------- SkyTab sales import (by hand, for days the daily email missed) */
+// The sheet does the matching, with the same rules as the daily email (departments, recipes, supplies).
 $('#salesFile').onchange = async e => {
   const f = e.target.files[0]; e.target.value = '';
   if (!f) return;
   if (!isManager()) return toast('Importing sales needs the manager PIN', { bad: true });
+  if (isDemo()) return toast('Not available in demo mode. Connect to your Google Sheet to use this.', { bad: true });
   let sheetsIn;
   try { sheetsIn = await readSheetFile(f); } catch (err) { return toast(err.message, { bad: true }); }
-  let sales = null;
-  for (const s of sheetsIn) { sales = tableFrom(s.rows, ['item', 'item name', 'menu item']); if (sales) break; }
-  if (!sales) return toast("Couldn't find an Item column. Use SkyTab's Sales Summary by Item report.", { bad: true, ms: 6000 });
-  const agg = {};
-  sales.forEach(r => {
-    const name = String(pick(r, ['item', 'item name', 'menu item', 'name'])).trim();
-    const qty = num(pick(r, ['qty', 'quantity', 'item qty', 'sold', 'count']));
-    if (!name || !qty || qty <= 0 || /^(grand )?total/i.test(name)) return;
-    agg[name] = (agg[name] || 0) + qty;
-  });
-  salesPreview(f.name, agg);
+  const s = sheetsIn.find(x => tableFrom(x.rows, ['item', 'item name', 'menu item']));
+  if (!s) return toast("Couldn't find an Item column. Use SkyTab's Sales Summary by Item report.", { bad: true, ms: 6000 });
+  // Only plain text and numbers go to the sheet.
+  const rows = s.rows.slice(0, 5000).map(r => r.slice(0, 30).map(v => (typeof v === 'number' ? v : String(v === undefined || v === null ? '' : v))));
+  salesPreview(f.name, rows);
 };
 
-function salesPreview(fileName, agg) {
-  const build = () => {
-    const index = {};
-    S.items.forEach(it => {
-      const names = splitPos(it.posNames);
-      (names.length ? names : [it.name]).forEach(n => { (index[norm(n)] = index[norm(n)] || []).push(it); });
-    });
-    const matched = [], unmatched = [];
-    Object.entries(agg).sort((a, b) => a[0].localeCompare(b[0])).forEach(([pos, qty]) => {
-      const its = index[norm(pos)];
-      if (its) its.forEach(it => matched.push({ pos, qty, it, units: round2(qty / (num(it.poursPerUnit) || 1)) }));
-      else unmatched.push({ pos, qty });
-    });
-    return { matched, unmatched };
-  };
+const localDay = d => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+
+function salesPreview(fileName, rows) {
+  let day = localDay(new Date(Date.now() - 86400000));
   const sh = openSheet('SkyTab sales import', '');
-  const draw = () => {
-    const { matched, unmatched } = build();
-    const totalSold = Object.values(agg).reduce((a, b) => a + b, 0);
-    const neverCounted = new Set(matched.filter(m => !m.it.lastCounted).map(m => m.it.id)).size;
+  const fail = e => toast(e instanceof NetError ? 'No connection — try again with signal' : e.message, { bad: true, ms: 6000 });
+  const load = async () => {
+    sh.body.innerHTML = '<div class="empty"><span class="spin"></span> Checking the report…</div>';
+    try {
+      const p = await api('salesPreview', { rows, day });
+      if (!p.ok) throw new Error(p.error);
+      draw(p);
+    } catch (e) { sh.body.innerHTML = `<div class="empty">${esc(e instanceof NetError ? 'No connection' : e.message)}</div>`; }
+  };
+  const draw = p => {
     sh.body.innerHTML = `
-      <div class="banner info"><b>${esc(fileName)}</b><br>${Object.keys(agg).length} SkyTab items, ${fmt(totalSold)} sold</div>
-      ${neverCounted ? `<div class="banner warn">${neverCounted} of these items have never been counted. Do a full count first (Count tab), then only import sales from after that count, or on-hand numbers will go negative.</div>` : ''}
-      <h3>Will be taken off inventory (${matched.length})</h3>
-      ${matched.length ? `<table class="prev"><thead><tr><th>SkyTab item</th><th class="n">Sold</th><th>Inventory item</th><th class="n">−</th></tr></thead><tbody>
-        ${matched.map(m => `<tr><td>${esc(m.pos)}</td><td class="n">${fmt(m.qty)}</td><td>${esc(m.it.name)}${num(m.it.poursPerUnit) > 1 ? `<div class="small-note">${fmt(m.it.poursPerUnit)} per ${esc(m.it.unit || 'unit')}</div>` : ''}</td><td class="n"><b>${fmt(m.units)}</b></td></tr>`).join('')}
-      </tbody></table>` : '<div class="banner warn">Nothing matched yet. Link SkyTab items below, or fill in "SkyTab item names" on your inventory items.</div>'}
-      <details style="margin-top:12px" ${matched.length ? '' : 'open'}><summary>Not linked to inventory (${unmatched.length})</summary>
-        <p class="hint">Food, mixed drinks, and other things you don't track can stay here. Tap Link to connect one to an inventory item, and it will be remembered next time.</p>
-        <div class="list">${unmatched.map(u => `<div class="li"><div class="grow"><div class="nm">${esc(u.pos)}</div><div class="sub">${fmt(u.qty)} sold</div></div><button class="btn small" type="button" data-link="${esc(u.pos)}">Link</button></div>`).join('') || '<div class="empty">Everything matched.</div>'}</div>
-      </details>
-      <button class="btn primary block" type="button" id="applySales" style="margin-top:14px" ${matched.length ? '' : 'disabled'}>Take ${matched.length} items off inventory</button>
-      <p class="small-note">Import each report once. Pick SkyTab dates that start the day after your last import.</p>`;
+      <div class="banner info"><b>${esc(fileName)}</b> · ${p.count} lines</div>
+      <div class="field"><label class="f" for="sDay">The one day this report covers</label><input class="t" type="date" id="sDay" value="${esc(day)}" max="${localDay(new Date())}"></div>
+      ${p.importedOn ? `<div class="banner warn">Sales for ${esc(p.day)} were already taken off on ${esc(p.importedOn)}. Importing again would take them off twice.</div>` : ''}
+      <h3>Comes off inventory (${p.lines.length})</h3>
+      ${p.lines.length ? `<table class="prev"><thead><tr><th>SkyTab item</th><th class="n">Sold</th><th>Comes off</th></tr></thead><tbody>
+        ${p.lines.map(l => `<tr><td>${esc(l.name)}${l.recipe ? '<div class="small-note">recipe</div>' : ''}</td><td class="n">${fmt(l.qty)}</td>
+          <td>${l.parts.map(x => `${esc(x.item)} <b>−${fmt(x.units)}</b>`).join('<br>')}</td></tr>`).join('')}
+      </tbody></table>` : '<div class="banner warn">Nothing is linked yet. Link SkyTab items below, or fill in "SkyTab item names" on your inventory items.</div>'}
+      ${p.unlinked.length ? `<h3>Bar items not linked (${p.unlinked.length})</h3>
+        <p class="hint">Link one to an inventory item, or give pitchers and mixed drinks a recipe. It's remembered next time.</p>
+        <div class="list">${p.unlinked.map(u => `<div class="li"><div class="grow"><div class="nm">${esc(u.name)}</div><div class="sub">${fmt(u.qty)} sold${u.dept ? ' · ' + esc(u.dept) : ''}</div></div>
+          <button class="btn small" type="button" data-link="${esc(u.name)}">Link</button><button class="btn small ghost" type="button" data-recipe="${esc(u.name)}">Recipe</button></div>`).join('')}</div>` : ''}
+      ${p.other.length ? `<p class="small-note">Departments the sheet doesn't know: ${esc(p.other.join(', '))}. Linked items in them still come off.</p>` : ''}
+      <p class="small-note">Food-night sales only take off Shared items. Kitchen-only items and supplies are counted by hand.</p>
+      <button class="btn primary block" type="button" id="applySales" style="margin-top:14px">${p.lines.length ? `Take ${p.lines.length} items off inventory` : 'Save this day (nothing comes off)'}</button>
+      <button class="btn block" type="button" id="historyOnly" style="margin-top:8px" ${p.inHistory ? 'disabled' : ''}>${p.inHistory ? 'This day is already in the sales history' : 'Only save to sales history (an old day)'}</button>`;
+    $('#sDay', sh.body).onchange = e => { if (e.target.value) { day = e.target.value; load(); } };
     $$('[data-link]', sh.body).forEach(b => b.onclick = async () => {
       const pos = b.dataset.link;
-      const it = await pickItemSheet(`Which inventory item does "${pos}" use?`);
+      const it = await pickItemSheet(`Which inventory item does "${pos}" use?`, { all: true });
       if (!it) return;
       const names = splitPos(it.posNames);
       if (!names.length) names.push(it.name);
       names.push(pos);
-      const saved = await saveItemRemote({ id: it.id, posNames: [...new Set(names)].join(', ') });
-      if (saved) draw();
+      if (await saveItemRemote({ id: it.id, posNames: [...new Set(names)].join(', ') })) load();
     });
-    const apply = $('#applySales', sh.body);
-    apply.onclick = () => applySales(matched, fileName, Object.keys(agg).length + ':' + totalSold, apply, sh);
+    $$('[data-recipe]', sh.body).forEach(b => b.onclick = () => recipeEditor(b.dataset.recipe, null, load));
+    const apply = async (btn, force) => {
+      btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Saving…';
+      try {
+        await flush();
+        const r = await api('importSales', { rows, day, force: !!force });
+        if (!r.ok && r.code === 'duplicate_import') {
+          btn.disabled = false; btn.textContent = 'Take items off inventory';
+          if (confirm(r.error + '.\n\nImport it again anyway? (This would take the same sales off twice.)')) return apply(btn, true);
+          return;
+        }
+        if (!r.ok) throw new Error(r.error);
+        (r.items || []).forEach(upsertLocal);
+        renderAll(); sh.close();
+        toast(`Sales for ${r.day} imported · ${r.matched} SkyTab items taken off`);
+      } catch (e) { btn.disabled = false; btn.textContent = 'Try again'; fail(e); }
+    };
+    $('#applySales', sh.body).onclick = e => apply(e.currentTarget, false);
+    $('#historyOnly', sh.body).onclick = async e => {
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      try {
+        const r = await api('importSales', { rows, day, historyOnly: true });
+        if (!r.ok) throw new Error(r.error);
+        sh.close(); toast(`${r.day} saved to the sales history`);
+      } catch (err) { btn.disabled = false; fail(err); }
+    };
+  };
+  load();
+}
+
+/* ---------------------------------------- drink recipes (manager) */
+// name: the SkyTab name (null to type a new one). recipe: {name, parts: [{id, amount}]} or null.
+function recipeEditor(name, recipe, onSaved) {
+  const parts = (recipe ? recipe.parts : []).filter(p => itemById(p.id)).map(p => ({ id: p.id, amount: p.amount }));
+  let typed = '';
+  const sh = openSheet(name ? name : 'New recipe', '');
+  const send = async list => {
+    const nm = name || typed.trim();
+    if (!nm) return toast('Type the SkyTab name', { bad: true });
+    if (!list.length && !recipe) return toast('Add at least one item', { bad: true });
+    if (list.some(p => !(p.amount > 0))) return toast('Put an amount on every item', { bad: true });
+    try {
+      const r = await api('saveRecipe', { recipe: { name: nm, parts: list } });
+      if (!r.ok) throw new Error(r.error);
+      ((r.applied && r.applied.items) || []).forEach(upsertLocal);
+      renderAll(); sh.close();
+      toast(!list.length ? 'Recipe removed' : r.applied ? `Saved · ${r.applied.day} sales taken off` : 'Recipe saved');
+      if (onSaved) onSaved(r);
+    } catch (e) { toast(e instanceof NetError ? 'No connection' : e.message, { bad: true, ms: 5000 }); }
+  };
+  const draw = () => {
+    sh.body.innerHTML = `
+      ${name ? '' : `<div class="field"><label class="f" for="rName">SkyTab name, spelled like the sales report</label><input class="t" id="rName" value="${esc(typed)}" placeholder="Bud Light Pitcher"></div>`}
+      <p class="hint">What one sale uses. Amounts are in each item's own pours: a keg's pints, a bottle's shots, a syrup box's drinks. A pitcher is 4 pints.</p>
+      <div class="list">${parts.map((p, i) => {
+        const it = itemById(p.id); const per = num(it.poursPerUnit) || 1;
+        return `<div class="li"><div class="grow"><div class="nm">${esc(it.name)}</div><div class="sub">${per > 1 ? `${fmt(per)} pours per ${esc(it.unit || 'unit')}` : `whole ${esc(it.unit || 'unit')}s`}</div></div>
+          <input class="count-n" type="number" inputmode="decimal" step="any" min="0" data-amt="${i}" value="${esc(p.amount ?? '')}" aria-label="Amount of ${esc(it.name)}" style="width:70px">
+          <button class="mini" type="button" data-rm="${i}" aria-label="Remove ${esc(it.name)}">×</button></div>`;
+      }).join('') || '<div class="empty">No items yet.</div>'}</div>
+      <button class="btn block" type="button" id="rAdd" style="margin-top:10px">+ Add an item</button>
+      <button class="btn primary block" type="button" id="rSave" style="margin-top:10px">Save recipe</button>
+      ${recipe ? '<button class="btn ghost block" type="button" id="rDel" style="margin-top:8px;color:var(--accent)">Remove recipe</button>' : ''}
+      <p class="small-note">With a recipe, sales of this name come off by the recipe instead of an item linked to the name. If the last daily email had sales of it that weren't taken off, they come off when you save.</p>`;
+    if ($('#rName', sh.body)) $('#rName', sh.body).oninput = e => { typed = e.target.value; };
+    $$('[data-amt]', sh.body).forEach(i => i.oninput = () => { parts[i.dataset.amt].amount = num(i.value); });
+    $$('[data-rm]', sh.body).forEach(b => b.onclick = () => { parts.splice(Number(b.dataset.rm), 1); draw(); });
+    $('#rAdd', sh.body).onclick = async () => {
+      const it = await pickItemSheet('Which item does it use?', { all: true });
+      if (it && !parts.some(p => p.id === it.id)) parts.push({ id: it.id, amount: 1 });
+      draw();
+    };
+    $('#rSave', sh.body).onclick = () => send(parts);
+    if ($('#rDel', sh.body)) $('#rDel', sh.body).onclick = () => { if (confirm(`Remove the recipe for ${name}?`)) send([]); };
   };
   draw();
 }
 
-async function applySales(matched, fileName, sig, btn, sh, force) {
-  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Saving…';
-  const ops = matched.map(m => ({ opId: uid(), id: m.it.id, mode: 'remove', qty: m.units, note: `SkyTab: ${m.pos} ×${fmt(m.qty)} (${fileName})`, source: 'sales' }));
-  try {
-    await flush();
-    const r = await api('batch', { ops, importKey: fileName + '|' + sig, force: !!force });
-    if (!r.ok && r.code === 'duplicate_import') {
-      btn.disabled = false; btn.textContent = 'Take items off inventory';
-      if (confirm(r.error + '.\n\nImport it again anyway? (This would subtract the same sales twice.)')) return applySales(matched, fileName, sig, btn, sh, true);
-      return;
-    }
-    if (!r.ok) throw new Error(r.error);
-    (r.items || []).forEach(upsertLocal);
-    renderAll(); sh.close();
-    toast(`Sales imported · ${ops.length} items updated`);
-  } catch (e) {
-    btn.disabled = false; btn.textContent = 'Try again';
-    toast(e instanceof NetError ? 'No connection — try again with signal' : e.message, { bad: true, ms: 6000 });
-  }
-}
+$('#showRecipes').onclick = async () => {
+  if (isDemo()) return toast('Not available in demo mode', { bad: true });
+  const sh = openSheet('Drink recipes', '<div class="empty"><span class="spin"></span></div>');
+  let info = null;
+  let filter = 'need';
+  const load = async () => {
+    try {
+      info = await api('recipes');
+      if (!info.ok) throw new Error(info.error);
+      draw();
+    } catch (e) { sh.body.innerHTML = `<div class="empty">${esc(e instanceof NetError ? 'No connection' : e.message)}</div>`; }
+  };
+  const draw = () => {
+    const rec = new Map(info.recipes.map(r => [norm(r.name), r]));
+    const linked = new Set();
+    S.items.forEach(i => { const n = splitPos(i.posNames); (n.length ? n : [i.name]).forEach(x => linked.add(norm(x))); });
+    const status = n => rec.has(norm(n.name)) ? 'recipe' : linked.has(norm(n.name)) ? 'linked' : 'none';
+    const sold = new Set(info.names.map(n => norm(n.name)));
+    // Recipes for names that haven't sold lately still show under Recipes.
+    const all = info.names.concat(info.recipes.filter(r => !sold.has(norm(r.name))).map(r => ({ name: r.name, dept: '', qty: 0, cls: 'bar' })));
+    const rows = all.filter(n => filter === 'all' || (filter === 'recipes' ? status(n) === 'recipe' : status(n) === 'none' && n.cls === 'bar'));
+    const tag = s => s === 'recipe' ? '<span class="tag ok">RECIPE</span>' : s === 'linked' ? '<span class="tag">LINKED</span>' : '';
+    sh.body.innerHTML = `
+      <div class="chips">${[['need', 'Bar items not linked'], ['recipes', 'Recipes'], ['all', 'Everything sold']].map(([k, l]) => `<button type="button" class="chip ${k === filter ? 'on' : ''}" data-f="${k}">${l}</button>`).join('')}</div>
+      ${info.names.length ? '' : '<p class="hint">SkyTab names show up here once the daily sales email has come in. You can still add a recipe by typing its name.</p>'}
+      <div class="list">${rows.map(n => `<button class="li" type="button" data-n="${esc(n.name)}"><div class="grow"><div class="nm">${esc(n.name)}</div>
+        <div class="sub">${n.qty ? `${fmt(n.qty)} sold in 3 months` : 'not sold lately'}${n.dept ? ' · ' + esc(n.dept) : ''}</div></div>${tag(status(n))}</button>`).join('') || '<div class="empty">Nothing here.</div>'}</div>
+      <button class="btn block" type="button" id="rNew" style="margin-top:12px">+ New recipe</button>`;
+    $$('[data-f]', sh.body).forEach(b => b.onclick = () => { filter = b.dataset.f; draw(); });
+    $$('[data-n]', sh.body).forEach(b => b.onclick = () => recipeEditor(b.dataset.n, rec.get(norm(b.dataset.n)) || null, load));
+    $('#rNew', sh.body).onclick = () => recipeEditor(null, null, load);
+  };
+  load();
+};
+
+/* ---------------------------------------- storage spots (manager) */
+$('#showSpots').onclick = () => {
+  const spots = S.spots.slice();
+  const sh = openSheet('Storage spots', '');
+  const draw = focus => {
+    sh.body.innerHTML = `
+      <p class="hint">In the order you walk them during a count.</p>
+      <div class="list">${spots.map((s, i) => `<div class="li"><input class="t grow" data-sp="${i}" value="${esc(s)}" aria-label="Spot ${i + 1}" placeholder="e.g. Liquor cage">
+        <button class="mini" type="button" data-up="${i}" aria-label="Move up" ${i ? '' : 'disabled'}>↑</button>
+        <button class="mini" type="button" data-rm="${i}" aria-label="Remove">×</button></div>`).join('')}</div>
+      <button class="btn block" type="button" id="spAdd" style="margin-top:10px">+ Add a spot</button>
+      <button class="btn primary block" type="button" id="spSave" style="margin-top:10px">Save</button>
+      <p class="small-note">Renaming a spot doesn't move items already set to the old name: change those on the item.</p>`;
+    $$('[data-sp]', sh.body).forEach(i => i.oninput = () => { spots[i.dataset.sp] = i.value; });
+    $$('[data-up]', sh.body).forEach(b => b.onclick = () => { const i = Number(b.dataset.up); [spots[i - 1], spots[i]] = [spots[i], spots[i - 1]]; draw(); });
+    $$('[data-rm]', sh.body).forEach(b => b.onclick = () => { spots.splice(Number(b.dataset.rm), 1); draw(); });
+    $('#spAdd', sh.body).onclick = () => { spots.push(''); draw(spots.length - 1); };
+    $('#spSave', sh.body).onclick = async () => {
+      try {
+        const r = await api('saveSpots', { spots });
+        if (!r.ok) throw new Error(r.error);
+        S.spots = r.spots; save(LS.spots, S.spots);
+        sh.close(); renderAll(); toast('Storage spots saved');
+      } catch (e) { toast(e instanceof NetError ? 'No connection' : e.message, { bad: true }); }
+    };
+    if (focus !== undefined) { const i = $(`[data-sp="${focus}"]`, sh.body); if (i) i.focus(); }
+  };
+  draw();
+};
 
 /* ---------------------------------------- item import */
 $('#itemsFile').onchange = async e => {
@@ -1433,7 +1705,7 @@ $('#showStaff').onclick = async () => {
       ${people.some(p => p.active) ? '' : '<div class="banner warn">When you add the first person, the shared staff PIN stops working. Add everyone who uses the app, then hand out their PINs.</div>'}
       <div class="list">${people.map((p, i) => `
         <div class="li"><div class="grow"><b>${esc(p.name)}</b>
-          ${p.role === 'manager' ? '<span class="tag ok">MANAGER</span>' : ''} ${p.active ? '' : '<span class="tag warn">OFF</span>'}
+          ${p.role === 'manager' ? '<span class="tag ok">MANAGER</span>' : p.role === 'kitchen' ? '<span class="tag">KITCHEN</span>' : ''} ${p.active ? '' : '<span class="tag warn">OFF</span>'}
           <div class="small-note">PIN <span data-pin="${i}">••••</span></div></div>
           <button class="btn small" type="button" data-show="${i}">Show</button>
           <button class="btn small" type="button" data-edit="${i}">Change</button></div>`).join('') || '<div class="empty">No one has their own PIN yet.</div>'}</div>
@@ -1441,12 +1713,12 @@ $('#showStaff').onclick = async () => {
       <form class="stack" id="addPerson" autocomplete="off">
         <div><label class="f" for="pName">Name</label><input class="t" id="pName" placeholder="First and last name" autocomplete="off"></div>
         <div class="grid2">
-          <div><label class="f" for="pRole">Can do</label><select class="t" id="pRole"><option value="staff">Staff</option><option value="manager">Manager</option></select></div>
+          <div><label class="f" for="pRole">Can do</label><select class="t" id="pRole"><option value="staff">Bar staff</option><option value="kitchen">Kitchen</option><option value="manager">Manager</option></select></div>
           <div><label class="f" for="pPin">PIN</label><input class="t" id="pPin" inputmode="numeric" placeholder="Blank = make one" autocomplete="off"></div>
         </div>
         <button class="btn primary block" type="submit">Add</button>
       </form>
-      <p class="small-note">Staff can scan, receive, remove and count. Managers can also edit items, import sales, see reports and manage PINs. You can also edit the Staff tab in the Google Sheet. Your master manager PIN always works.</p>`;
+      <p class="small-note">Bar staff scan, receive, remove and count Bar and Shared items. Kitchen people do the same for Kitchen and Shared items. Managers can also edit items, import sales, see reports and manage PINs. You can also edit the Staff tab in the Google Sheet (Role: staff, kitchen or manager). Your master manager PIN always works.</p>`;
     $$('[data-show]', sh.body).forEach(b => b.onclick = () => {
       const span = $(`[data-pin="${b.dataset.show}"]`, sh.body);
       const showing = span.textContent !== '••••';
@@ -1457,10 +1729,13 @@ $('#showStaff').onclick = async () => {
       const p = people[b.dataset.edit];
       const ed = openSheet(p.name, `<div class="stack">
         <button class="btn block" type="button" id="eNew">Give ${esc(p.name)} a new PIN</button>
-        <button class="btn block" type="button" id="eRole">Make ${p.role === 'manager' ? 'staff' : 'a manager'}</button>
+        <div class="seg" role="group" aria-label="Role">${[['staff', 'Bar staff'], ['kitchen', 'Kitchen'], ['manager', 'Manager']].map(([k, l]) => `<button type="button" data-role="${k}" class="${p.role === k ? 'on' : ''}">${l}</button>`).join('')}</div>
         <button class="btn block" type="button" id="eOn">${p.active ? 'Turn PIN off (left, or lost phone)' : 'Turn PIN back on'}</button></div>`);
       $('#eNew', ed.body).onclick = () => { ed.close(); send({ name: p.name, newPin: true }, q => `${esc(q.name)}'s new PIN is <b>${esc(q.pin)}</b>. The old one stopped working. Give it to them in person.`); };
-      $('#eRole', ed.body).onclick = () => { ed.close(); send({ name: p.name, role: p.role === 'manager' ? 'staff' : 'manager' }, q => `${esc(q.name)} is now ${q.role === 'manager' ? 'a manager' : 'staff'}.`); };
+      $$('[data-role]', ed.body).forEach(b => b.onclick = () => {
+        if (b.dataset.role === p.role) return;
+        ed.close(); send({ name: p.name, role: b.dataset.role }, q => `${esc(q.name)} is now ${{ manager: 'a manager', kitchen: 'kitchen', staff: 'bar staff' }[q.role]}.`);
+      });
       $('#eOn', ed.body).onclick = () => {
         if (p.active && !confirm(`Turn off ${p.name}'s PIN? It stops working right away.`)) return;
         ed.close(); send({ name: p.name, active: !p.active }, q => `${esc(q.name)}'s PIN is ${q.active ? 'back on' : 'off'}.`);
@@ -1533,7 +1808,7 @@ function renderConn() {
   const c = S.cfg;
   const status = !c.api && !c.demo ? '<span class="tag low">NOT SET UP</span>'
     : isDemo() ? '<span class="tag warn">DEMO MODE</span>'
-    : S.role ? `<span class="tag ok">CONNECTED · ${S.role === 'manager' ? 'MANAGER' : 'STAFF'}</span>` : '<span class="tag warn">NOT VERIFIED</span>';
+    : S.role ? `<span class="tag ok">CONNECTED · ${{ manager: 'MANAGER', kitchen: 'KITCHEN' }[S.role] || 'STAFF'}</span>` : '<span class="tag warn">NOT VERIFIED</span>';
   const nameNote = S.me ? `Set by your PIN: you're signed in as <b>${esc(S.me)}</b>.` : 'Shows up in the log. Not needed if you have your own PIN.';
   $('#connCard').innerHTML = `
     <div class="row"><b class="grow">Connection</b>${status}</div>
@@ -1592,7 +1867,7 @@ function showView(v) {
 $$('nav.tabs [data-view]').forEach(b => b.onclick = () => showView(b.dataset.view));
 
 function renderAll() {
-  renderRecent(); renderOrder();
+  renderRecent(); renderOrder(); renderDue();
   if (S.view === 'items') renderItems();
   if (S.view === 'count') renderCount();
   if (S.view === 'more') { renderConn(); renderAutoSales(); }
@@ -1616,7 +1891,7 @@ async function renderAutoSales(force) {
 function drawAutoSales(st) {
   const host = $('#autoSales');
   if (!st) {
-    host.innerHTML = `<p class="hint" style="margin:4px 0 0">Not set up yet. In Lighthouse, schedule <i>Sales Summary by Item</i> to email this sheet's Google account every morning, then run <b>installSalesImport</b> in Apps Script. Sales then come off inventory on their own.</p>`;
+    host.innerHTML = `<p class="hint" style="margin:4px 0 0">No sales email has come in yet. If you just set it up, the first one is read the next morning after 7. To set it up: in Lighthouse, schedule <i>Sales Summary by Item</i> to email this sheet's Google account every morning, then run <b>installSalesImport</b> in Apps Script.</p>`;
     return;
   }
   const un = st.unlinked || [];
@@ -1624,22 +1899,26 @@ function drawAutoSales(st) {
     <p class="hint" style="margin:4px 0 8px">${st.error
       ? `<span class="tag warn">Problem</span> The email for ${esc(st.day)} couldn't be read: ${esc(st.error)}`
       : `Last report: <b>${esc(st.day)}</b> · ${st.matched} taken off${st.beforeCount ? ` · ${st.beforeCount} already counted, so left as is` : ''}`}. It runs every morning on its own.</p>
-    ${un.length ? `<p class="hint" style="margin:0 0 6px">Not linked to an item, so not taken off (${un.length}). Tap Link and that day's sales come off too:</p>
-      <div class="list">${un.map(u => `<div class="li"><div class="grow"><div class="nm">${esc(u.name)}</div><div class="sub">${fmt(u.qty)} sold${u.cls ? ' · ' + esc(u.cls) : ''}</div></div><button class="btn small" type="button" data-autolink="${esc(u.name)}">Link</button></div>`).join('')}</div>` : ''}`;
+    ${un.length ? `<p class="hint" style="margin:0 0 6px">Bar items not linked, so not taken off (${un.length}). Link one to an item, or give pitchers and mixed drinks a recipe, and that day's sales come off too:</p>
+      <div class="list">${un.map(u => `<div class="li"><div class="grow"><div class="nm">${esc(u.name)}</div><div class="sub">${fmt(u.qty)} sold${u.dept || u.cls ? ' · ' + esc(u.dept || u.cls) : ''}</div></div>
+        <button class="btn small" type="button" data-autolink="${esc(u.name)}">Link</button><button class="btn small ghost" type="button" data-autorecipe="${esc(u.name)}">Recipe</button></div>`).join('')}</div>` : ''}
+    ${(st.other || []).length ? `<p class="small-note">Departments the sheet doesn't know yet: ${esc(st.other.join(', '))}. Linked items in them still come off.</p>` : ''}`;
   $$('[data-autolink]', host).forEach(b => b.onclick = async () => {
     const pos = b.dataset.autolink;
-    const it = await pickItemSheet(`Which inventory item does "${pos}" use?`);
+    const it = await pickItemSheet(`Which inventory item does "${pos}" use?`, { all: true });
     if (!it) return;
     b.disabled = true;
     try {
       const r = await api('linkSales', { pos, id: it.id });
       if (!r.ok) throw new Error(r.error);
       if (r.item) upsertLocal(r.item);
+      ((r.applied && r.applied.items) || []).forEach(upsertLocal);
       renderAll();
-      toast(r.applied ? `Linked · ${fmt(r.applied.units)} ${it.unit || ''} taken off for ${r.applied.day}` : 'Linked');
+      toast(r.applied ? `Linked · ${r.applied.day} sales taken off` : 'Linked');
       drawAutoSales(r.status);
     } catch (e) { b.disabled = false; toast(e.message, { bad: true }); }
   });
+  $$('[data-autorecipe]', host).forEach(b => b.onclick = () => recipeEditor(b.dataset.autorecipe, null, r => drawAutoSales(r.status)));
 }
 
 (function boot() {
