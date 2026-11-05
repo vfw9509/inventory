@@ -223,7 +223,7 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
     <div id="countIdle">
       <h2>Inventory count</h2>
       <p class="hint">Walk the bar and scan every bottle, can or case. Each scan adds one. Type a number for anything without a barcode or for partial bottles (0.5). When you finish, the counts replace what's on the sheet. Items you skip stay the same.</p>
-      <p class="hint" data-skytab><b>First:</b> import the SkyTab sales report up to today (More tab). Otherwise drinks that were sold show up as missing in the shrinkage report.</p>
+      <p class="hint" data-skytab><b>Count while the bar is closed</b>: before it opens (on event days, before the event starts) or after close. Drinks poured during a count make it look like bottles are missing.</p>
       <button class="btn primary block" type="button" id="startCount">Start a count</button>
     </div>
     <div id="countLive" class="hidden">
@@ -264,12 +264,16 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
   <section class="view" id="v-more">
     <div class="card stack" id="connCard"></div>
 
-    <div data-skytab>
+    <div data-skytab class="mgr-only">
       <h3>SkyTab (Shift4)</h3>
       <div class="card stack">
         <div>
-          <b>Take sales off inventory</b>
-          <p class="hint" style="margin:4px 0 10px">In SkyTab, go to Reports → <i>Sales Summary by Item</i>, pick the dates since your last import, and export to Excel. Then load the file here.</p>
+          <b>Daily sales email</b>
+          <div id="autoSales"><p class="hint" style="margin:4px 0 0">Loading…</p></div>
+        </div>
+        <div>
+          <b>Take sales off inventory by hand</b>
+          <p class="hint" style="margin:4px 0 10px">Only for days the daily email didn't cover. In SkyTab, go to Reports → <i>Sales Summary by Item</i>, pick the dates since your last import, and export to Excel. Then load the file here.</p>
           <label class="btn primary block">Import a SkyTab sales report<input type="file" id="salesFile" class="hidden" accept=".xls,.xlsx,.csv"></label>
         </div>
         <div>
@@ -303,7 +307,7 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
         <button class="btn block" type="button" id="showStaff">Staff &amp; PINs</button>
       </div>
     </div>
-    <p class="hint" style="text-align:center"><span id="footName"></span> · Inventory scanner v1.2<br><a href="https://vfw9509.github.io/inventory/setup.html" style="color:inherit">Set this up for another Post</a></p>
+    <p class="hint" style="text-align:center"><span id="footName"></span> · Inventory scanner v1.3<br><a href="https://vfw9509.github.io/inventory/setup.html" style="color:inherit">Set this up for another Post</a></p>
   </section>
 </main>
 
@@ -1591,7 +1595,51 @@ function renderAll() {
   renderRecent(); renderOrder();
   if (S.view === 'items') renderItems();
   if (S.view === 'count') renderCount();
-  if (S.view === 'more') renderConn();
+  if (S.view === 'more') { renderConn(); renderAutoSales(); }
+}
+
+/* ---------------------------------------- SkyTab daily email (status + linking) */
+let autoSalesAt = 0;
+async function renderAutoSales(force) {
+  const host = $('#autoSales');
+  if (!host || !POST.skytab || !isManager()) return;
+  if (isDemo()) { host.innerHTML = '<p class="hint" style="margin:4px 0 0">Not available in demo mode.</p>'; return; }
+  if (!force && Date.now() - autoSalesAt < 60000) return;
+  autoSalesAt = Date.now();
+  try {
+    const r = await api('salesStatus');
+    if (!r.ok) throw new Error(r.error);
+    drawAutoSales(r.status);
+  } catch (e) { autoSalesAt = 0; host.innerHTML = `<p class="hint" style="margin:4px 0 0">${esc(e.message)}</p>`; }
+}
+
+function drawAutoSales(st) {
+  const host = $('#autoSales');
+  if (!st) {
+    host.innerHTML = `<p class="hint" style="margin:4px 0 0">Not set up yet. In Lighthouse, schedule <i>Sales Summary by Item</i> to email this sheet's Google account every morning, then run <b>installSalesImport</b> in Apps Script. Sales then come off inventory on their own.</p>`;
+    return;
+  }
+  const un = st.unlinked || [];
+  host.innerHTML = `
+    <p class="hint" style="margin:4px 0 8px">${st.error
+      ? `<span class="tag warn">Problem</span> The email for ${esc(st.day)} couldn't be read: ${esc(st.error)}`
+      : `Last report: <b>${esc(st.day)}</b> · ${st.matched} taken off${st.beforeCount ? ` · ${st.beforeCount} already counted, so left as is` : ''}`}. It runs every morning on its own.</p>
+    ${un.length ? `<p class="hint" style="margin:0 0 6px">Not linked to an item, so not taken off (${un.length}). Tap Link and that day's sales come off too:</p>
+      <div class="list">${un.map(u => `<div class="li"><div class="grow"><div class="nm">${esc(u.name)}</div><div class="sub">${fmt(u.qty)} sold${u.cls ? ' · ' + esc(u.cls) : ''}</div></div><button class="btn small" type="button" data-autolink="${esc(u.name)}">Link</button></div>`).join('')}</div>` : ''}`;
+  $$('[data-autolink]', host).forEach(b => b.onclick = async () => {
+    const pos = b.dataset.autolink;
+    const it = await pickItemSheet(`Which inventory item does "${pos}" use?`);
+    if (!it) return;
+    b.disabled = true;
+    try {
+      const r = await api('linkSales', { pos, id: it.id });
+      if (!r.ok) throw new Error(r.error);
+      if (r.item) upsertLocal(r.item);
+      renderAll();
+      toast(r.applied ? `Linked · ${fmt(r.applied.units)} ${it.unit || ''} taken off for ${r.applied.day}` : 'Linked');
+      drawAutoSales(r.status);
+    } catch (e) { b.disabled = false; toast(e.message, { bad: true }); }
+  });
 }
 
 (function boot() {
