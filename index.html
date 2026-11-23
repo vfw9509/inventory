@@ -182,12 +182,17 @@ table.prev td.n, table.prev th.n { text-align: right; font-variant-numeric: tabu
 .dchip.miss { border-style: dashed; color: var(--muted); }
 .dchip button { border: 0; background: none; color: var(--muted); font-size: 18px; line-height: 1; width: 28px; height: 28px; border-radius: 50%; }
 .up { color: var(--ok); } .down { color: var(--accent); }
+button.plain { background: none; border: 0; padding: 0; text-align: left; color: inherit; font: inherit; min-width: 0; }
+.spot-img { display: block; width: 100%; border-radius: 12px; background: var(--surface-2); min-height: 120px; }
+.spot-thumb { display: block; width: 100%; max-height: 170px; object-fit: cover; border-radius: 10px; margin: 6px 0 8px; background: var(--surface-2); min-height: 60px; }
+.spot-mini { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; flex: none; background: var(--surface-2); }
 details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 .spin { width: 18px; height: 18px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: sp .8s linear infinite; display: inline-block; vertical-align: middle; }
 @keyframes sp { to { transform: rotate(360deg); } }
 .hidden { display: none !important; }
 .count-n { min-width: 64px; text-align: center; font-weight: 700; font-size: 18px; border: 1px solid var(--line); border-radius: 10px; padding: 6px 4px; background: var(--surface); }
 .mini { width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); font-size: 20px; font-weight: 700; flex: none; }
+.mini[disabled] { opacity: .35; }
 </style>
 </head>
 <body>
@@ -278,7 +283,9 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
   <!-- ORDER -->
   <section class="view" id="v-order">
     <h2>Order list</h2>
-    <p class="hint">Everything under par, with how many it takes to get back to par.</p>
+    <p class="hint">Everything under par, with how many it takes to get back to par. Each item is under the vendor with its lowest price; pick one to text or download just that order.</p>
+    <div class="seg hidden" id="orderBy" role="group" aria-label="Group the list" style="margin-bottom:10px"></div>
+    <div class="chips" id="orderChips"></div>
     <div id="orderBody"></div>
     <div class="grid2" style="margin-top:12px">
       <button class="btn" type="button" id="orderShare">Text / copy list</button>
@@ -323,9 +330,19 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
         <label class="btn block">Import items<input type="file" id="itemsFile" class="hidden" accept=".xls,.xlsx,.csv"></label>
       </div>
       <div class="mgr-only">
+        <b>Categories</b>
+        <p class="hint" style="margin:4px 0 10px">Add, rename, reorder or remove categories. Renaming one changes it on every item.</p>
+        <button class="btn block" type="button" id="showCats">Categories</button>
+      </div>
+      <div class="mgr-only">
         <b>Storage spots</b>
-        <p class="hint" style="margin:4px 0 10px">Where things are kept, in the order you walk them. The count checklist groups items by spot.</p>
+        <p class="hint" style="margin:4px 0 10px">Where things are kept, in the order you walk them, with a photo of each. The count checklist groups items by spot, and a count can cover one spot.</p>
         <button class="btn block" type="button" id="showSpots">Storage spots</button>
+      </div>
+      <div class="mgr-only">
+        <b>Vendors</b>
+        <p class="hint" style="margin:4px 0 10px">Who you buy from: contact, phone, website, account number. Put each item's price at each vendor on the item; the order list puts it under the cheapest.</p>
+        <button class="btn block" type="button" id="showVendors">Vendors</button>
       </div>
     </div>
 
@@ -344,7 +361,7 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
         <button class="btn block" type="button" id="showStaff">Staff &amp; PINs</button>
       </div>
     </div>
-    <p class="hint" style="text-align:center"><span id="footName"></span> · Inventory scanner v1.5<br><a href="https://vfw9509.github.io/inventory/setup.html" style="color:inherit">Set this up for another Post</a></p>
+    <p class="hint" style="text-align:center"><span id="footName"></span> · Inventory scanner v1.6<br><a href="https://vfw9509.github.io/inventory/setup.html" style="color:inherit">Set this up for another Post</a></p>
   </section>
 </main>
 
@@ -380,12 +397,13 @@ const POUR_PRESETS = [
 const DEFAULT_SPOTS = ['Back bar', 'Beer cooler', 'Walk-in cooler', 'Freezer', 'Storage room', 'Kitchen'];
 const COUNT_DAYS = [3, 0];  // Wednesday and Sunday bar counts (0 = Sunday)
 const AREAS = { bar: 'Bar', kitchen: 'Kitchen', shared: 'Shared' };
-const LS = { cfg: 'vfwinv.cfg', items: 'vfwinv.items', queue: 'vfwinv.queue', recent: 'vfwinv.recent', count: 'vfwinv.count', demo: 'vfwinv.demo', spots: 'vfwinv.spots' };
+const LS = { cfg: 'vfwinv.cfg', items: 'vfwinv.items', queue: 'vfwinv.queue', recent: 'vfwinv.recent', count: 'vfwinv.count', demo: 'vfwinv.demo', spots: 'vfwinv.spots', categories: 'vfwinv.categories', photos: 'vfwinv.photos', vendors: 'vfwinv.vendors', prices: 'vfwinv.prices', orderBy: 'vfwinv.orderBy' };
 
 /* =========================================================== utils */
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = s => String(s === undefined || s === null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const nItems = n => n + (n === 1 ? ' item' : ' items');
 const num = v => (v === '' || v === null || v === undefined || isNaN(Number(v))) ? null : Number(v);
 const fmt = v => { const n = num(v); if (n === null) return '–'; return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0+$/, '').replace(/\.$/, ''); };
 const round2 = n => Math.round(n * 100) / 100;
@@ -479,6 +497,11 @@ const S = {
   role: null,
   items: load(LS.items, []),
   spots: load(LS.spots, DEFAULT_SPOTS),
+  categories: load(LS.categories, DEFAULT_CATEGORIES),
+  photos: load(LS.photos, {}), // {spot: when its photo was taken}
+  vendors: load(LS.vendors, []), // [{name, contact, phone, email, website, account, notes}]; staff get names only
+  prices: load(LS.prices, {}), // {item id: [{vendor, price}]}, cheapest first
+  orderBy: load(LS.orderBy, 'vendor'),
   queue: load(LS.queue, []),
   recent: load(LS.recent, []),
   count: load(LS.count, null),
@@ -487,7 +510,8 @@ const S = {
   syncing: false,
   error: null,
   view: 'scan',
-  cat: 'All'
+  cat: 'All',
+  orderPick: 'All'
 };
 const isDemo = () => !S.cfg.api && S.cfg.demo;
 const isManager = () => S.role === 'manager';
@@ -521,8 +545,9 @@ function upsertLocal(it) {
 }
 const isLow = it => num(it.par) !== null && (num(it.onHand) || 0) < num(it.par);
 const toOrder = it => isLow(it) ? round2(num(it.par) - (num(it.onHand) || 0)) : 0;
+// The manager's category list, in their order, then any other category typed on an item.
 function categories() {
-  const set = new Set(DEFAULT_CATEGORIES);
+  const set = new Set(S.categories.length ? S.categories : DEFAULT_CATEGORIES);
   S.items.forEach(i => i.category && set.add(i.category));
   return [...set];
 }
@@ -542,6 +567,16 @@ const Demo = {
       mk('Plastic cups (sleeve)', 'Supplies', 'sleeve', 6, 4, 1, '', { type: 'supply', area: 'shared', spot: 'Storage room', posNames: '' }),
       mk('Hamburger patties (case)', 'Kitchen', 'case', 2, 2, 40, '', { area: 'kitchen', spot: 'Freezer', posNames: '' })
     ], log: [] };
+    // Two made-up vendors, so the order list shows who to buy each item from.
+    db.vendors = [
+      { name: 'Valley Beverage', contact: 'Sam', phone: '555-0100', email: '', website: '', account: 'VB-1001', notes: 'Order by Tuesday for Thursday delivery' },
+      { name: 'Tri-County Distributing', contact: 'Lee', phone: '555-0101', email: '', website: '', account: 'TC-22', notes: '' }];
+    db.prices = {};
+    const price = (name, list) => { const it = db.items.find(i => i.name === name); db.prices[it.id] = list.map(([vendor, p]) => ({ vendor, price: p })).sort((a, b) => a.price - b.price); it.cost = db.prices[it.id][0].price; };
+    price('Bud Light (bottle)', [['Valley Beverage', 1.1]]);
+    price('Bud Light ½ keg', [['Valley Beverage', 120]]);
+    price('Crown Royal 750 mL', [['Tri-County Distributing', 27.75], ['Valley Beverage', 29.5]]);
+    price('Captain Morgan 750 mL', [['Valley Beverage', 18.5], ['Tri-County Distributing', 19.25]]);
     save(LS.demo, db); return db;
   },
   async call(action, p) {
@@ -551,8 +586,25 @@ const Demo = {
     let out;
     switch (action) {
       case 'ping': out = { ok: true, role: 'manager' }; break;
-      case 'items': out = { ok: true, role: 'manager', items: db.items, spots: db.spots || DEFAULT_SPOTS }; break;
-      case 'saveSpots': db.spots = p.spots.map(s => String(s).trim()).filter(Boolean); out = { ok: true, spots: db.spots }; break;
+      case 'items': out = { ok: true, role: 'manager', items: db.items, spots: db.spots || DEFAULT_SPOTS, categories: db.categories || DEFAULT_CATEGORIES,
+        vendors: db.vendors || [], prices: db.prices || {}, photos: {} }; break;
+      case 'saveSpots': case 'saveCategories': {
+        const key = action === 'saveSpots' ? 'spot' : 'category', list = action === 'saveSpots' ? 'spots' : 'categories';
+        const ren = p.renames || {};
+        let moved = 0;
+        db.items.forEach(i => { const to = Object.keys(ren).find(k => norm(k) === norm(i[key])); if (to && i[key] !== ren[to]) { i[key] = ren[to]; moved++; } });
+        db[list] = [...new Set(p[list].map(s => String(s).trim()).filter(Boolean))];
+        out = { ok: true, [list]: db[list], moved, photos: {} }; break;
+      }
+      case 'saveVendors': {
+        const ren = p.renames || {}, names = p.vendors.map(v => v.name);
+        db.vendors = p.vendors;
+        Object.keys(db.prices || {}).forEach(id => {
+          db.prices[id] = db.prices[id].map(x => ({ vendor: ren[x.vendor] || x.vendor, price: x.price })).filter(x => names.includes(x.vendor));
+          if (!db.prices[id].length) delete db.prices[id];
+        });
+        out = { ok: true, vendors: db.vendors, prices: db.prices || {} }; break;
+      }
       case 'log': out = { ok: true, entries: db.log.filter(e => !p.itemId || e.id === p.itemId).slice(0, p.limit || 100) }; break;
       case 'lookup': out = { ok: true, product: await lookupDirect(p.upc) }; break;
       case 'saveItem': {
@@ -563,6 +615,13 @@ const Demo = {
         if (it) { Object.assign(it, src); log('EDIT', it, '', ''); }
         else { it = Object.assign({ category: '', unit: 'each', upc: '', caseUpc: '', caseQty: '', onHand: 0, par: '', cost: '', posNames: '', poursPerUnit: 1, lastCounted: '' }, src, { id: 'D' + uid() }); db.items.push(it); log('NEW ITEM', it, it.onHand, ''); }
         it.updated = now; it.updatedBy = S.cfg.user;
+        if (Array.isArray(src.prices)) {
+          db.prices = db.prices || {};
+          db.prices[it.id] = sortPrices(src.prices.slice(0, 4));
+          const low = src.prices.filter(x => x.price !== '').map(x => x.price);
+          if (low.length) it.cost = Math.min(...low);
+          delete it.prices;
+        }
         out = { ok: true, item: it }; break;
       }
       case 'importItems': {
@@ -636,6 +695,10 @@ async function pull(force, quiet) {
     S.items = r.items.map(it => pending[it.id] ? withPending(it, pending[it.id]) : it);
     persistItems();
     if (Array.isArray(r.spots)) { S.spots = r.spots; save(LS.spots, S.spots); }
+    if (Array.isArray(r.categories)) { S.categories = r.categories; save(LS.categories, S.categories); }
+    if (r.photos && typeof r.photos === 'object') { S.photos = r.photos; save(LS.photos, S.photos); }
+    if (Array.isArray(r.vendors)) { S.vendors = r.vendors; save(LS.vendors, S.vendors); }
+    if (r.prices && typeof r.prices === 'object') { S.prices = r.prices; save(LS.prices, S.prices); }
     S.lastPull = Date.now();
     if (force && !quiet) toast('Up to date · ' + S.items.length + ' items');
   } catch (e) {
@@ -867,6 +930,7 @@ function itemSheet(item, ctx = {}) {
     const mine = isMine(live);
     sh.body.innerHTML = `
       <div class="small-note" style="margin:-6px 0 10px">${esc([live.category, live.unit].filter(Boolean).join(' · '))}${live.upc ? ' · UPC ' + esc(live.upc) : ''}${live.spot ? ' · ' + esc(live.spot) : ''}${live.type === 'supply' ? ' · <span class="tag warn">SUPPLY</span>' : ''}</div>
+      ${pricesOf(live).length ? `<div class="small-note" style="margin:-4px 0 10px">Buy from: ${pricesOf(live).map((p, i) => `${i ? '' : '<b>'}${esc(p.vendor)}${p.price !== '' ? ' $' + Number(p.price).toFixed(2) : ''}${i ? '' : '</b>'}`).join(' · ')}</div>` : ''}
       <div class="bignum">
         ${box
           ? `<div><small>Full ${words}</small><b>${fmt(unopened(live))}</b></div><div><small>Open ${word}</small><b>${Math.round(Math.min(openLeft(live), 1) * 100)}%</b> <span class="small-note">left</span></div>`
@@ -1002,7 +1066,10 @@ function renderItemForm(host, it, opts) {
     <form autocomplete="off">
       <div class="field"><label class="f">Name</label><input class="t" name="name" required value="${esc(it.name || '')}" placeholder="e.g. Crown Royal 750 mL" ${mgr ? '' : 'readonly'}></div>
       <div class="grid2" style="margin-top:12px">
-        <div><label class="f">Category</label><input class="t" name="category" list="catList" value="${esc(it.category || '')}" ${mgr ? '' : 'readonly'}><datalist id="catList">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist></div>
+        <div><label class="f">Category</label>${mgr
+          ? `<select class="t" name="catPick">${['', ...new Set([...cats, it.category].filter(Boolean))].map(c => `<option value="${esc(c)}" ${c === (it.category || '') ? 'selected' : ''}>${esc(c || 'None')}</option>`).join('')}${isManager() ? '<option value="+new">+ New category…</option>' : ''}</select>
+            <input class="t hidden" name="category" value="${esc(it.category || '')}" placeholder="New category" style="margin-top:6px">`
+          : `<input class="t" name="category" value="${esc(it.category || '')}" readonly>`}</div>
         <div><label class="f">Counted as</label><input class="t" name="unit" list="unitList" value="${esc(it.unit || '')}" ${mgr ? '' : 'readonly'}><datalist id="unitList">${UNITS.map(c => `<option value="${esc(c)}">`).join('')}</datalist></div>
       </div>
       ${opts.isNew ? `
@@ -1038,7 +1105,11 @@ function renderItemForm(host, it, opts) {
       </div>
       <div class="field" style="margin-top:12px"><label class="f">Units per case</label><input class="t" name="caseQty" type="number" inputmode="numeric" value="${esc(it.caseQty ?? '')}" ${mgr ? '' : 'readonly'}></div>`}
       ${isManager() ? `
-      <details style="margin-top:12px" ${opts.isNew ? '' : 'open'}><summary>${POST.skytab ? 'SkyTab link &amp; cost' : 'Cost'}</summary>
+      <details style="margin-top:12px" ${opts.isNew ? '' : 'open'}><summary>Where we buy it &amp; cost</summary>
+        <div class="field"><label class="f">Vendors and their price per ${esc(it.unit || 'unit')} (up to 4)</label>
+          <div id="vpRows"></div>
+          ${S.vendors.length ? '<button class="btn small" type="button" id="vpAdd" style="margin-top:6px">+ Vendor price</button>' : '<div class="small-note">Add vendors first under More → Vendors.</div>'}
+          <div class="small-note">The order list puts this item under the cheapest vendor, and Cost follows the lowest price.</div></div>
         <div class="field"><label class="f">Cost per ${esc(it.unit || 'unit')} ($)</label><input class="t" name="cost" type="number" inputmode="decimal" step="0.01" value="${esc(it.cost ?? '')}"></div>
         ${POST.skytab ? `<div class="field"><label class="f">SkyTab item names that use this</label><textarea class="t" name="posNames" placeholder="Crown Royal, Crown & Coke">${esc(it.posNames || '')}</textarea>
           <div class="small-note">Comma-separated, spelled exactly like the SkyTab sales report. Leave blank to match the item name.</div></div>
@@ -1069,6 +1140,34 @@ function renderItemForm(host, it, opts) {
     if (box && ['bottle', 'each', ''].includes(f.unit.value)) f.unit.value = f.kind.value;
   };
   if (f.kind) { f.kind.onchange = kindChanged; kindChanged(); }
+  if (f.catPick) f.catPick.onchange = () => {
+    const nw = f.catPick.value === '+new';
+    f.category.classList.toggle('hidden', !nw);
+    f.category.value = nw ? '' : f.catPick.value;
+    if (nw) f.category.focus();
+  };
+  // Vendor prices: a vendor and its price per unit on each row.
+  const vp = $('#vpRows', f) ? pricesOf(it).map(p => ({ vendor: p.vendor, price: p.price })) : null;
+  const drawVp = () => {
+    const names = S.vendors.map(v => v.name);
+    $('#vpRows', f).innerHTML = vp.map((p, i) => `<div class="row" style="margin-top:6px">
+      <select class="t grow" data-vv="${i}" aria-label="Vendor">${[...new Set([...names, p.vendor].filter(Boolean))].map(n => `<option ${n === p.vendor ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
+      <input class="t" data-vp="${i}" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(p.price)}" placeholder="$" aria-label="Price at ${esc(p.vendor)}" style="width:96px">
+      <button class="mini" type="button" data-vx="${i}" aria-label="Remove">×</button></div>`).join('');
+    $$('[data-vv]', f).forEach(s => s.onchange = () => { vp[s.dataset.vv].vendor = s.value; });
+    $$('[data-vp]', f).forEach(s => s.oninput = () => { vp[s.dataset.vp].price = s.value === '' ? '' : Number(s.value); });
+    $$('[data-vx]', f).forEach(b => b.onclick = () => { vp.splice(Number(b.dataset.vx), 1); drawVp(); });
+    const add = $('#vpAdd', f);
+    if (add) add.disabled = vp.length >= 4;
+  };
+  if (vp) {
+    drawVp();
+    const add = $('#vpAdd', f);
+    if (add) add.onclick = () => {
+      const free = S.vendors.map(v => v.name).find(n => !vp.some(p => p.vendor === n));
+      vp.push({ vendor: free || S.vendors[0].name, price: '' }); drawVp();
+    };
+  }
   if (f.pourPreset) f.pourPreset.onchange = () => {
     const c = f.pourPreset.value === 'custom';
     f.poursPerUnit.classList.toggle('hidden', !c);
@@ -1106,6 +1205,10 @@ function renderItemForm(host, it, opts) {
     patch.spot = v('spot');
     if (isManager()) {
       patch.cost = v('cost');
+      if (vp) {
+        const seen = new Set();
+        patch.prices = vp.filter(p => p.vendor && !seen.has(norm(p.vendor)) && seen.add(norm(p.vendor)));
+      }
       if (POST.skytab) { patch.posNames = v('posNames'); patch.poursPerUnit = v('poursPerUnit'); }
       Object.assign(patch, { type: v('type'), area: v('area'), kind: v('kind') });
       if (patch.kind) {
@@ -1116,6 +1219,11 @@ function renderItemForm(host, it, opts) {
     }
     const saved = await saveItemRemote(patch);
     btn.disabled = false;
+    if (saved && patch.prices) {
+      S.prices[saved.id] = sortPrices(patch.prices);
+      if (!patch.prices.length) delete S.prices[saved.id];
+      save(LS.prices, S.prices); renderAll();
+    }
     if (saved && opts.onSaved) opts.onSaved(saved);
   };
 }
@@ -1191,7 +1299,7 @@ function renderItems() {
   const rows = mine
     .filter(inCat)
     .filter(i => !q || norm(i.name).includes(q) || norm(i.upc).includes(q) || norm(i.posNames).includes(q))
-    .sort((a, b) => (a.category || '').localeCompare(b.category || '') || a.name.localeCompare(b.name));
+    .sort(byCategory);
   const tags = i => [isManager() && areaOf(i) !== 'bar' ? AREAS[areaOf(i)] : '', i.type === 'supply' ? 'supply' : ''].filter(Boolean).map(t => ' · ' + esc(t)).join('');
   $('#itemList').innerHTML = rows.length ? rows.map(i => `
     <button class="li" type="button" data-id="${esc(i.id)}">
@@ -1214,7 +1322,8 @@ $('#addItemBtn').onclick = () => {
 /* =========================================================== count view */
 const COUNT_AREAS = { bar: ['bar', 'shared'], kitchen: ['kitchen', 'shared'], all: ['bar', 'kitchen', 'shared'] };
 const countArea = () => (S.count && S.count.area) || (S.role === 'kitchen' ? 'kitchen' : isManager() ? 'all' : 'bar');
-const inCount = it => COUNT_AREAS[countArea()].includes(areaOf(it)) && isMine(it);
+// A count covers an area (bar, kitchen, everything), or just one storage spot of it.
+const inCount = it => COUNT_AREAS[countArea()].includes(areaOf(it)) && isMine(it) && (!S.count || !S.count.spot || (it.spot || '') === S.count.spot);
 // What the sheet says, in the terms a count uses: kegs and syrup boxes count full ones only.
 const sheetCount = it => isContainer(it) ? unopened(it) : num(it.onHand) || 0;
 const countSub = it => isContainer(it) ? `full ${containerWords(it)} · sheet says ${fmt(unopened(it))} full` : `sheet says ${fmt(it.onHand)}`;
@@ -1237,12 +1346,15 @@ function renderDue() {
   $('#scanDue').innerHTML = S.count ? '' : html;
   $('#countDue').innerHTML = html;
 }
-function startCount(area) {
-  S.count = { started: new Date().toISOString(), tally: {}, area };
+function startCount(area, spot) {
+  S.count = { started: new Date().toISOString(), tally: {}, area, spot: spot || '' };
   save(LS.count, S.count);
   showView('count');
 }
-document.addEventListener('click', e => { const b = e.target.closest('[data-start-count]'); if (b) startCount(b.dataset.startCount); });
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-start-count]');
+  if (b) startCount(b.dataset.startCount, b.dataset.spot);
+});
 
 function renderCount() {
   const c = S.count;
@@ -1253,11 +1365,21 @@ function renderCount() {
     const opts = S.role === 'kitchen' ? [['kitchen', 'Start kitchen count']]
       : isManager() ? [['bar', 'Start bar count'], ['kitchen', 'Start kitchen count'], ['all', 'Count everything']]
         : [['bar', 'Start bar count']];
-    $('#countStart').innerHTML = opts.map(([a, l], i) => `<button class="btn ${i ? '' : 'primary'} block" type="button" data-start-count="${a}">${l}</button>`).join('');
+    // Or one storage spot at a time: the spots that hold this person's items, in walking order.
+    const area = S.role === 'kitchen' ? 'kitchen' : isManager() ? 'all' : 'bar';
+    const mine = S.items.filter(it => COUNT_AREAS[area].includes(areaOf(it)) && isMine(it));
+    const spots = [...S.spots, ...new Set(mine.map(i => i.spot).filter(s => s && !S.spots.includes(s)))]
+      .map(s => [s, mine.filter(i => i.spot === s).length]).filter(([, n]) => n);
+    $('#countStart').innerHTML = opts.map(([a, l], i) => `<button class="btn ${i ? '' : 'primary'} block" type="button" data-start-count="${a}">${l}</button>`).join('') +
+      (spots.length ? `<h3 style="margin-top:8px">Or count one storage spot</h3><div class="list">${spots.map(([s, n]) => `
+        <button class="li" type="button" data-start-count="${area}" data-spot="${esc(s)}">
+          ${S.photos[s] ? `<img class="spot-mini" data-photo="${esc(s)}" alt="">` : ''}
+          <div class="grow"><div class="nm">${esc(s)}</div><div class="sub">${nItems(n)}</div></div><span aria-hidden="true">›</span></button>`).join('')}</div>` : '');
+    fillPhotos($('#countStart'));
     return;
   }
   const ids = Object.keys(c.tally);
-  const label = { bar: 'Bar count', kitchen: 'Kitchen count', all: 'Full count' }[countArea()];
+  const label = c.spot ? `${c.spot} count` : { bar: 'Bar count', kitchen: 'Kitchen count', all: 'Full count' }[countArea()];
   $('#countHead').textContent = `${label} · ${ids.length} counted`;
   $('#countList').innerHTML = ids.length ? ids.slice().reverse().map(id => {
     const it = itemById(id); if (!it) return '';
@@ -1271,11 +1393,15 @@ function renderCount() {
   const todo = S.items.filter(it => inCount(it) && !(it.id in c.tally));
   const order = [...S.spots, ...new Set(todo.map(i => i.spot).filter(s => s && !S.spots.includes(s))), ''];
   const groups = order.map(s => [s, todo.filter(i => (i.spot || '') === s).sort((a, b) => a.name.localeCompare(b.name))]).filter(g => g[1].length);
-  $('#countTodo').innerHTML = todo.length ? `<h3>Not counted yet · ${todo.length}</h3>` + groups.map(([s, list]) => `
+  const photo = s => S.photos[s] ? `<button class="plain" type="button" data-photo-open="${esc(s)}" aria-label="Bigger photo of ${esc(s)}" style="display:block;width:100%"><img class="spot-thumb" data-photo="${esc(s)}" alt="Photo of ${esc(s)}"></button>` : '';
+  $('#countTodo').innerHTML = (c.spot && !todo.length ? photo(c.spot) : '') + (todo.length ? `<h3>Not counted yet · ${todo.length}</h3>` + groups.map(([s, list]) => `
     <details open style="margin-bottom:10px"><summary>${esc(s || 'No storage spot set')} · ${list.length}</summary>
+      ${photo(s)}
       <div class="list">${list.map(it => `<div class="li"><div class="grow"><div class="nm">${esc(it.name)}</div><div class="sub">${esc(countSub(it))}</div></div>
         <input class="count-n" type="number" inputmode="decimal" step="any" min="0" data-todo="${esc(it.id)}" placeholder="–" aria-label="Count for ${esc(it.name)}" style="width:70px"></div>`).join('')}</div>
-    </details>`).join('') : (ids.length ? '<div class="banner good" style="margin-top:12px">Everything on the list is counted.</div>' : '');
+    </details>`).join('') : (ids.length ? `<div class="banner good" style="margin-top:12px">Everything ${c.spot ? 'in ' + esc(c.spot) : 'on the list'} is counted.</div>` : ''));
+  fillPhotos($('#countTodo'));
+  $$('[data-photo-open]', $('#countTodo')).forEach(b => b.onclick = () => spotPhotoSheet(b.dataset.photoOpen));
 
   $$('[data-inc]').forEach(b => b.onclick = () => bump(b.dataset.inc, 1));
   $$('[data-dec]').forEach(b => b.onclick = () => bump(b.dataset.dec, -1));
@@ -1328,7 +1454,7 @@ $('#countSave').onclick = () => {
   const diffs = ids.map(id => ({ it: itemById(id), n: S.count.tally[id] })).filter(x => x.it);
   const left = S.items.filter(it => inCount(it) && !(it.id in S.count.tally)).length;
   const sh = openSheet('Save count?', `
-    <p class="hint">These counts will replace the on-hand numbers in the sheet.${left ? ` ${left} items on the list weren't counted; they stay as they are.` : ''}</p>
+    <p class="hint">These counts will replace the on-hand numbers in the sheet.${left ? ` ${nItems(left)} on the list weren't counted; they stay as they are.` : ''}</p>
     <table class="prev"><thead><tr><th>Item</th><th class="n">Sheet</th><th class="n">Counted</th><th class="n">Diff</th></tr></thead><tbody>
     ${diffs.map(d => { const was = sheetCount(d.it); const df = round2(d.n - was); return `<tr><td>${esc(d.it.name)}${isContainer(d.it) ? `<div class="small-note">full ${containerWords(d.it)}</div>` : ''}</td><td class="n">${fmt(was)}</td><td class="n"><b>${fmt(d.n)}</b></td><td class="n" style="color:${df < 0 ? 'var(--accent)' : df > 0 ? 'var(--ok)' : 'inherit'}">${df > 0 ? '+' : ''}${fmt(df)}</td></tr>`; }).join('')}
     </tbody></table>
@@ -1337,31 +1463,107 @@ $('#countSave').onclick = () => {
     diffs.forEach(d => stockChange(d.it, 'set', d.n, 'Count'));
     Cam.stop(); S.count = null; save(LS.count, null);
     sh.close(); renderCount();
-    toast(`Count saved · ${diffs.length} items`);
+    toast(`Count saved · ${nItems(diffs.length)}`);
   };
 };
 
 /* =========================================================== order view */
-function orderRows() {
-  return visibleItems().filter(isLow).sort((a, b) => (a.category || '').localeCompare(b.category || '') || a.name.localeCompare(b.name));
+// Categories in the manager's order; anything without one goes last.
+const byCategory = (a, b) => {
+  const cats = categories(), rank = c => { const i = cats.indexOf(c); return c ? (i < 0 ? cats.length : i) : cats.length + 1; };
+  return rank(a.category || '') - rank(b.category || '') || a.name.localeCompare(b.name);
+};
+// Each item's vendor prices, cheapest first (a vendor with no price yet goes last).
+const pricesOf = it => S.prices[it.id] || [];
+const sortPrices = list => list.slice().sort((a, b) => (a.price === '' ? Infinity : a.price) - (b.price === '' ? Infinity : b.price));
+// Where an item gets ordered from: the vendor with the lowest price.
+const vendorOf = it => (pricesOf(it)[0] || {}).vendor || '';
+const priceOf = it => { const p = pricesOf(it)[0]; return p && p.price !== '' ? p.price : num(it.cost); };
+const vendorInfo = name => S.vendors.find(v => norm(v.name) === norm(name)) || null;
+const NO_VENDOR = 'No vendor set';
+const orderBy = () => (S.vendors.length && S.orderBy !== 'category' ? 'vendor' : 'category');
+const orderGroup = i => orderBy() === 'vendor' ? (vendorOf(i) || NO_VENDOR) : (i.category || 'Other');
+const money2 = n => '$' + n.toFixed(2);
+
+// Everything below par, grouped by vendor (or category), or only the group picked on the Order screen (what Text
+// and Excel send too).
+function orderRows(all) {
+  const vRank = g => { const i = S.vendors.findIndex(v => v.name === g); return i < 0 ? S.vendors.length : i; };
+  const rows = visibleItems().filter(isLow).sort((a, b) => orderBy() === 'vendor' ? vRank(orderGroup(a)) - vRank(orderGroup(b)) || byCategory(a, b) : byCategory(a, b));
+  return all || S.orderPick === 'All' ? rows : rows.filter(i => orderGroup(i) === S.orderPick);
 }
+const orderQty = i => Math.ceil(toOrder(i));
+const lineCost = i => { const p = priceOf(i); return p === null || p === '' ? null : orderQty(i) * p; };
+
+// A vendor's contact line on the order list: tap to call, email or open the website.
+function vendorCard(name) {
+  const v = vendorInfo(name);
+  if (!v) return '';
+  const site = v.website ? (/^https?:\/\//i.test(v.website) ? v.website : 'https://' + v.website) : '';
+  const bits = [
+    v.contact ? esc(v.contact) : '',
+    v.phone ? `<a href="tel:${esc(v.phone.replace(/[^\d+]/g, ''))}">${esc(v.phone)}</a>` : '',
+    v.email ? `<a href="mailto:${esc(v.email)}">${esc(v.email)}</a>` : '',
+    site ? `<a href="${esc(site)}" target="_blank" rel="noopener">Website</a>` : '',
+    v.account ? 'Acct # ' + esc(v.account) : ''
+  ].filter(Boolean);
+  return bits.length || v.notes ? `<div class="small-note" style="margin:-4px 0 8px">${bits.join(' · ')}${v.notes ? `<div>${esc(v.notes)}</div>` : ''}</div>` : '';
+}
+
 function renderOrder() {
-  const rows = orderRows();
+  const allRows = orderRows(true);
   const b = $('#orderBadge');
-  b.textContent = rows.length; b.classList.toggle('hidden', !rows.length);
+  b.textContent = allRows.length; b.classList.toggle('hidden', !allRows.length);
+  const by = orderBy();
+  $('#orderBy').innerHTML = S.vendors.length ? [['vendor', 'By vendor'], ['category', 'By category']]
+    .map(([k, l]) => `<button type="button" data-by="${k}" class="${by === k ? 'on' : ''}">${l}</button>`).join('') : '';
+  $('#orderBy').classList.toggle('hidden', !S.vendors.length);
+  $$('#orderBy [data-by]').forEach(x => x.onclick = () => { S.orderBy = x.dataset.by; S.orderPick = 'All'; save(LS.orderBy, S.orderBy); renderOrder(); });
+  const groups = [...new Set(allRows.map(orderGroup))];
+  if (!groups.includes(S.orderPick)) S.orderPick = 'All';
+  const n = g => g === 'All' ? allRows.length : allRows.filter(i => orderGroup(i) === g).length;
+  $('#orderChips').innerHTML = groups.length > 1 ? ['All', ...groups].map(g => `<button type="button" class="chip ${g === S.orderPick ? 'on' : ''}" data-pick="${esc(g)}">${esc(g)} · ${n(g)}</button>`).join('') : '';
+  $$('#orderChips [data-pick]').forEach(x => x.onclick = () => { S.orderPick = x.dataset.pick; renderOrder(); });
+  const rows = orderRows();
   if (!rows.length) { $('#orderBody').innerHTML = `<div class="list"><div class="empty">${S.items.some(i => num(i.par) !== null) ? 'Everything is at or above par. 👍' : 'Set a par on items to build an order list.'}</div></div>`; return; }
-  const groups = {};
-  rows.forEach(r => { (groups[r.category || 'Other'] = groups[r.category || 'Other'] || []).push(r); });
-  $('#orderBody').innerHTML = Object.entries(groups).map(([g, list]) => `
-    <h3>${esc(g)}</h3><div class="list">${list.map(i => `
-      <button class="li" type="button" data-id="${esc(i.id)}"><div class="grow"><div class="nm">${esc(i.name)}</div><div class="sub">have ${fmt(i.onHand)} · par ${fmt(i.par)}</div></div>
-      <div class="qty"><span>order </span><b>${fmt(Math.ceil(toOrder(i)))}</b></div></button>`).join('')}</div>`).join('');
+  const grouped = {};
+  rows.forEach(r => { (grouped[orderGroup(r)] = grouped[orderGroup(r)] || []).push(r); });
+  // Under a vendor: its price, and what the others charge, so a better price elsewhere shows.
+  const priceLine = i => {
+    const p = pricesOf(i);
+    if (!p.length) return num(i.cost) !== null ? ` · ${money2(num(i.cost))} each` : '';
+    const first = p[0];
+    const others = p.slice(1).filter(x => x.price !== '').map(x => `${esc(x.vendor)} ${money2(x.price)}`);
+    return first.price !== '' ? ` · ${money2(first.price)}${by === 'category' ? ' at ' + esc(first.vendor) : ''}` : '';
+  };
+  // What the other vendors charge, on its own line so it never gets cut off on a phone.
+  const otherPrices = i => {
+    const others = pricesOf(i).slice(1).filter(x => x.price !== '').map(x => `${esc(x.vendor)} ${money2(x.price)}`);
+    return others.length ? `<div class="sub">also ${others.join(' · ')}</div>` : '';
+  };
+  $('#orderBody').innerHTML = Object.entries(grouped).map(([g, list]) => {
+    const costs = list.map(lineCost);
+    const total = costs.reduce((s, c) => s + (c || 0), 0);
+    return `<h3 class="row"><span class="grow">${esc(g)}</span>${total ? `<span class="small-note">about ${money2(total)}${costs.some(c => c === null) ? ' +' : ''}</span>` : ''}</h3>
+      ${by === 'vendor' ? vendorCard(g) : ''}
+      <div class="list">${list.map(i => `
+      <button class="li" type="button" data-id="${esc(i.id)}"><div class="grow"><div class="nm">${esc(i.name)}</div><div class="sub">have ${fmt(i.onHand)} · par ${fmt(i.par)}${priceLine(i)}</div>${otherPrices(i)}</div>
+      <div class="qty"><span>order </span><b>${fmt(orderQty(i))}</b></div></button>`).join('')}</div>`;
+  }).join('') + (by === 'vendor' && grouped[NO_VENDOR] && isManager() ? '<p class="small-note">Items under "No vendor set": add where you buy them in Edit item → Where we buy it.</p>' : '');
   $$('#orderBody [data-id]').forEach(x => x.onclick = () => itemSheet(itemById(x.dataset.id)));
 }
 $('#orderShare').onclick = async () => {
   const rows = orderRows();
   if (!rows.length) return toast('Nothing to order');
-  const text = POST.name + ' order list (' + new Date().toLocaleDateString() + ')\n' + rows.map(i => `${Math.ceil(toOrder(i))} × ${i.name}`).join('\n');
+  const head = POST.name + ' order list' + (S.orderPick === 'All' ? '' : ' · ' + S.orderPick) + ' (' + new Date().toLocaleDateString() + ')';
+  const sections = {};
+  rows.forEach(i => { (sections[orderGroup(i)] = sections[orderGroup(i)] || []).push(i); });
+  const text = head + '\n' + Object.entries(sections).map(([g, list]) => {
+    const v = orderBy() === 'vendor' ? vendorInfo(g) : null;
+    const title = S.orderPick === 'All' ? g : '';
+    const acct = v && v.account ? 'Account # ' + v.account : '';
+    return [[title, acct].filter(Boolean).join(' · '), ...list.map(i => `${orderQty(i)} × ${i.name}`)].filter(Boolean).join('\n');
+  }).join('\n\n');
   try {
     if (navigator.share) await navigator.share({ text });
     else { await navigator.clipboard.writeText(text); toast('Copied to clipboard'); }
@@ -1409,7 +1611,11 @@ $('#exportExcel').onclick = () => exportExcel(S.items.map(i => ({
   ...(POST.skytab ? { 'POS Names': i.posNames } : {}),
   'Last Counted': i.lastCounted ? new Date(i.lastCounted).toLocaleDateString() : ''
 })), `${FILE_TAG}_Inventory_${stamp()}.xlsx`, 'Inventory');
-$('#orderExcel').onclick = () => exportExcel(orderRows().map(i => ({ Category: i.category, Item: i.name, 'On Hand': num(i.onHand), Par: num(i.par), Order: Math.ceil(toOrder(i)) })), `${FILE_TAG}_Order_${stamp()}.xlsx`, 'Order');
+$('#orderExcel').onclick = () => exportExcel(orderRows().map(i => {
+  const v = vendorInfo(vendorOf(i)) || {};
+  return { Vendor: vendorOf(i), 'Account #': v.account || '', Category: i.category, Item: i.name, 'On Hand': num(i.onHand), Par: num(i.par), Order: orderQty(i),
+    Price: priceOf(i) ?? '', 'Est. cost': lineCost(i) === null ? '' : round2(lineCost(i)) };
+}), `${FILE_TAG}_Order_${S.orderPick === 'All' ? '' : S.orderPick.replace(/[^\w]+/g, '_') + '_'}${stamp()}.xlsx`, 'Order');
 
 $('#skytabExport').onclick = () => {
   const lines = [['Item Name', 'Item UPC', 'Cost']];
@@ -1565,7 +1771,7 @@ function salesPreview(fileName, rows) {
           <button class="btn small" type="button" data-link="${esc(u.name)}">Link</button><button class="btn small ghost" type="button" data-recipe="${esc(u.name)}">Recipe</button></div>`).join('')}</div>` : ''}
       ${p.other.length ? `<p class="small-note">Departments the sheet doesn't know: ${esc(p.other.join(', '))}. Linked items in them still come off.</p>` : ''}
       <p class="small-note">Food-night sales only take off Shared items. Kitchen-only items and supplies are counted by hand.</p>
-      <button class="btn primary block" type="button" id="applySales" style="margin-top:14px">${p.lines.length ? `Take ${p.lines.length} items off inventory` : 'Save this day (nothing comes off)'}</button>
+      <button class="btn primary block" type="button" id="applySales" style="margin-top:14px">${p.lines.length ? `Take ${nItems(p.lines.length)} off inventory` : 'Save this day (nothing comes off)'}</button>
       ${manyDays ? '' : `<button class="btn block" type="button" id="historyOnly" style="margin-top:8px" ${p.inHistory ? 'disabled' : ''}>${p.inHistory ? 'This day is already in the sales history' : 'Only save to sales history (an old day)'}</button>`}`;
     $('#sDay', sh.body).onchange = e => { if (e.target.value) { day = e.target.value; load(); } };
     $$('[data-link]', sh.body).forEach(b => b.onclick = async () => {
@@ -1691,35 +1897,212 @@ $('#showRecipes').onclick = async () => {
   load();
 };
 
-/* ---------------------------------------- storage spots (manager) */
-$('#showSpots').onclick = () => {
-  const spots = S.spots.slice();
-  const sh = openSheet('Storage spots', '');
+/* ---------------------------------------- categories and storage spots (manager) */
+// One editor for both lists. A rename carries over to every item that uses the name; removing one that's in use
+// asks where its items go.
+function listEditor({ title, hint, key, list, action, field, max, onSaved, photos }) {
+  const rows = list.map(n => ({ orig: n, name: n }));
+  const removed = []; // {orig, n: items using it, moveTo}
+  const used = n => S.items.filter(i => norm(i[key]) === norm(n)).length;
+  const sh = openSheet(title, '');
   const draw = focus => {
+    const names = rows.map(r => r.name.trim()).filter(Boolean);
+    removed.forEach(r => { if (r.moveTo && !names.includes(r.moveTo)) r.moveTo = names[0] || ''; });
     sh.body.innerHTML = `
-      <p class="hint">In the order you walk them during a count.</p>
-      <div class="list">${spots.map((s, i) => `<div class="li"><input class="t grow" data-sp="${i}" value="${esc(s)}" aria-label="Spot ${i + 1}" placeholder="e.g. Liquor cage">
-        <button class="mini" type="button" data-up="${i}" aria-label="Move up" ${i ? '' : 'disabled'}>↑</button>
-        <button class="mini" type="button" data-rm="${i}" aria-label="Remove">×</button></div>`).join('')}</div>
-      <button class="btn block" type="button" id="spAdd" style="margin-top:10px">+ Add a spot</button>
-      <button class="btn primary block" type="button" id="spSave" style="margin-top:10px">Save</button>
-      <p class="small-note">Renaming a spot doesn't move items already set to the old name: change those on the item.</p>`;
-    $$('[data-sp]', sh.body).forEach(i => i.oninput = () => { spots[i.dataset.sp] = i.value; });
-    $$('[data-up]', sh.body).forEach(b => b.onclick = () => { const i = Number(b.dataset.up); [spots[i - 1], spots[i]] = [spots[i], spots[i - 1]]; draw(); });
-    $$('[data-rm]', sh.body).forEach(b => b.onclick = () => { spots.splice(Number(b.dataset.rm), 1); draw(); });
-    $('#spAdd', sh.body).onclick = () => { spots.push(''); draw(spots.length - 1); };
-    $('#spSave', sh.body).onclick = async () => {
+      <p class="hint">${hint}</p>
+      <div class="list">${rows.map((r, i) => {
+        const renamed = r.orig && r.name.trim() && r.name.trim() !== r.orig;
+        return `<div class="li"><div class="grow">
+          <input class="t" data-nm="${i}" value="${esc(r.name)}" aria-label="${field} ${i + 1}" placeholder="Name">
+          <div class="small-note">${r.orig ? `${nItems(used(r.orig))}${renamed ? ` · renamed from ${esc(r.orig)}` : ''}` : 'new'}</div></div>
+          ${photos ? `<button class="mini" type="button" data-ph="${i}" aria-label="Photo of ${esc(r.name)}" ${r.orig && !renamed ? '' : 'disabled'}>${S.photos[r.orig] ? '🖼' : '📷'}</button>` : ''}
+          <button class="mini" type="button" data-up="${i}" aria-label="Move up" ${i ? '' : 'disabled'}>↑</button>
+          <button class="mini" type="button" data-rm="${i}" aria-label="Remove">×</button></div>`;
+      }).join('')}</div>
+      <button class="btn block" type="button" id="leAdd" style="margin-top:10px">+ Add</button>
+      ${removed.length ? `<h3>Removing</h3><div class="list">${removed.map((r, i) => `<div class="li"><div class="grow"><div class="nm">${esc(r.orig)}</div>
+        ${r.n ? `<label class="small-note">Move its ${nItems(r.n)} to</label><select class="t" data-mv="${i}">${names.map(n => `<option ${n === r.moveTo ? 'selected' : ''}>${esc(n)}</option>`).join('')}<option value="" ${r.moveTo ? '' : 'selected'}>Leave them as they are</option></select>` : '<div class="small-note">No items use it</div>'}</div>
+        <button class="mini" type="button" data-back="${i}" aria-label="Keep ${esc(r.orig)}">↺</button></div>`).join('')}</div>` : ''}
+      <button class="btn primary block" type="button" id="leSave" style="margin-top:12px">Save</button>
+      ${photos ? '<p class="small-note">📷 adds a photo of the spot (save a new or renamed spot first). People counting see it.</p>' : ''}`;
+    $$('[data-nm]', sh.body).forEach(i => i.oninput = () => { rows[i.dataset.nm].name = i.value; });
+    $$('[data-nm]', sh.body).forEach(i => i.onchange = () => draw());
+    $$('[data-up]', sh.body).forEach(b => b.onclick = () => { const i = Number(b.dataset.up); [rows[i - 1], rows[i]] = [rows[i], rows[i - 1]]; draw(); });
+    $$('[data-rm]', sh.body).forEach(b => b.onclick = () => {
+      const [r] = rows.splice(Number(b.dataset.rm), 1);
+      if (r.orig) { const n = used(r.orig); removed.push({ orig: r.orig, n, moveTo: n ? (rows[0] ? rows[0].name.trim() : '') : '' }); }
+      draw();
+    });
+    $$('[data-back]', sh.body).forEach(b => b.onclick = () => { const [r] = removed.splice(Number(b.dataset.back), 1); rows.push({ orig: r.orig, name: r.orig }); draw(); });
+    $$('[data-mv]', sh.body).forEach(s => s.onchange = () => { removed[s.dataset.mv].moveTo = s.value; });
+    $$('[data-ph]', sh.body).forEach(b => b.onclick = () => spotPhotoSheet(rows[b.dataset.ph].orig, () => draw()));
+    $('#leAdd', sh.body).onclick = () => { rows.push({ orig: '', name: '' }); draw(rows.length - 1); };
+    $('#leSave', sh.body).onclick = async e => {
+      const btn = e.currentTarget;
+      const names2 = rows.map(r => r.name.trim()).filter(Boolean);
+      if (!names2.length) return toast('Keep at least one', { bad: true });
+      if (names2.length > max) return toast(`Keep ${max} or fewer`, { bad: true });
+      const renames = {};
+      rows.forEach(r => { if (r.orig && r.name.trim() && r.name.trim() !== r.orig) renames[r.orig] = r.name.trim(); });
+      removed.forEach(r => { if (r.moveTo) renames[r.orig] = r.moveTo; });
+      btn.disabled = true;
       try {
-        const r = await api('saveSpots', { spots });
+        const r = await api(action, { [field]: names2, renames });
         if (!r.ok) throw new Error(r.error);
-        S.spots = r.spots; save(LS.spots, S.spots);
-        sh.close(); renderAll(); toast('Storage spots saved');
-      } catch (e) { toast(e instanceof NetError ? 'No connection' : e.message, { bad: true }); }
+        onSaved(r);
+        sh.close();
+        toast(`${title} saved${r.moved ? ` · ${nItems(r.moved)} changed` : ''}`);
+        if (r.moved) pull(true, true);
+        renderAll();
+      } catch (err) { btn.disabled = false; toast(err instanceof NetError ? 'No connection' : err.message, { bad: true }); }
     };
-    if (focus !== undefined) { const i = $(`[data-sp="${focus}"]`, sh.body); if (i) i.focus(); }
+    if (focus !== undefined) { const i = $(`[data-nm="${focus}"]`, sh.body); if (i) i.focus(); }
+  };
+  draw();
+}
+$('#showCats').onclick = () => listEditor({
+  title: 'Categories', key: 'category', action: 'saveCategories', field: 'categories', max: 60, list: categories(),
+  hint: 'In the order the items list and order list show them. Renaming one changes it on every item.',
+  onSaved: r => { S.categories = r.categories; save(LS.categories, S.categories); }
+});
+$('#showSpots').onclick = () => listEditor({
+  title: 'Storage spots', key: 'spot', action: 'saveSpots', field: 'spots', max: 40, list: S.spots.slice(), photos: true,
+  hint: 'In the order you walk them during a count. Renaming a spot moves its items and photo with it.',
+  onSaved: r => { S.spots = r.spots; save(LS.spots, S.spots); if (r.photos) { S.photos = r.photos; save(LS.photos, S.photos); } }
+});
+
+/* ---------------------------------------- storage spot photos */
+// Kept in the sheet owner's Google Drive; each phone keeps a copy (Cache Storage) so the count screen loads them
+// without signal. A photo is fetched again only when it was replaced.
+const PHOTO_CACHE = 'inv-spot-photos';
+const photoMem = {};
+async function spotPhotoSrc(spot) {
+  const at = S.photos[spot];
+  if (!at) return null;
+  const k = spot + '|' + at;
+  if (photoMem[k]) return photoMem[k];
+  const url = `/spot-photo/${encodeURIComponent(spot)}?at=${encodeURIComponent(at)}`;
+  let blob = null;
+  try { const c = await caches.open(PHOTO_CACHE); const hit = await c.match(url); if (hit) blob = await hit.blob(); } catch (e) { /* no cache here */ }
+  if (!blob) {
+    const r = await api('spotPhoto', { spot });
+    if (!r.ok) throw new Error(r.error);
+    blob = await (await fetch(r.data)).blob();
+    try { const c = await caches.open(PHOTO_CACHE); await c.put(url, new Response(blob)); } catch (e) { /* fine without */ }
+  }
+  return (photoMem[k] = URL.createObjectURL(blob));
+}
+// Fills every <img data-photo="spot"> in host once its picture is here.
+function fillPhotos(host) {
+  $$('img[data-photo]', host).forEach(img => spotPhotoSrc(img.dataset.photo).then(src => { if (src) img.src = src; }).catch(() => img.remove()));
+}
+// Phone photos are big: shrink to 1280 px on the long side, as JPEG.
+function shrinkPhoto(file) {
+  return new Promise((ok, fail) => {
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, 1280 / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(img.src);
+      ok(c.toDataURL('image/jpeg', 0.75));
+    };
+    img.onerror = () => fail(new Error("Couldn't read that picture"));
+    img.src = URL.createObjectURL(file);
+  });
+}
+function spotPhotoSheet(spot, onChange) {
+  const sh = openSheet(spot, '');
+  const draw = () => {
+    const has = !!S.photos[spot];
+    sh.body.innerHTML = `
+      ${has ? `<img class="spot-img" data-photo="${esc(spot)}" alt="Photo of ${esc(spot)}">` : '<div class="empty">No photo of this spot yet.</div>'}
+      ${isManager() ? `<label class="btn primary block" style="margin-top:12px">${has ? 'Replace photo' : 'Take or pick a photo'}<input type="file" accept="image/*" class="hidden" id="phFile"></label>
+        ${has ? '<button class="btn block" type="button" id="phRm" style="margin-top:8px">Remove photo</button>' : ''}` : ''}`;
+    fillPhotos(sh.body);
+    const send = async (payload, done) => {
+      try {
+        const r = await api('saveSpotPhoto', Object.assign({ spot }, payload));
+        if (!r.ok) throw new Error(r.error);
+        S.photos = r.photos; save(LS.photos, S.photos);
+        toast(done); draw(); renderAll(); if (onChange) onChange();
+      } catch (err) { toast(err instanceof NetError ? 'No connection' : err.message, { bad: true }); draw(); }
+    };
+    const file = $('#phFile', sh.body);
+    if (file) file.onchange = async () => {
+      const fl = file.files[0]; if (!fl) return;
+      sh.body.insertAdjacentHTML('afterbegin', '<div class="empty"><span class="spin"></span> Saving the photo…</div>');
+      try { await send({ data: await shrinkPhoto(fl) }, 'Photo saved'); } catch (err) { toast(err.message, { bad: true }); draw(); }
+    };
+    const rm = $('#phRm', sh.body);
+    if (rm) rm.onclick = () => { if (confirm(`Remove the photo of ${spot}?`)) send({ remove: true }, 'Photo removed'); };
+  };
+  draw();
+}
+
+/* ---------------------------------------- vendors (manager) */
+const VENDOR_FIELDS = [['name', 'Vendor name', 'text'], ['contact', 'Contact person (POC)', 'text'], ['phone', 'Phone', 'tel'],
+  ['email', 'Email', 'email'], ['website', 'Website', 'url'], ['account', 'Our account #', 'text'], ['notes', 'Notes (order days, minimums…)', 'area']];
+const vendorItems = name => Object.values(S.prices).filter(l => l.some(p => norm(p.vendor) === norm(name))).length;
+async function saveVendors(list, renames) {
+  const r = await api('saveVendors', { vendors: list, renames });
+  if (!r.ok) throw new Error(r.error);
+  S.vendors = r.vendors; S.prices = r.prices;
+  save(LS.vendors, S.vendors); save(LS.prices, S.prices);
+  renderAll();
+}
+$('#showVendors').onclick = () => {
+  const sh = openSheet('Vendors', '');
+  const draw = () => {
+    sh.body.innerHTML = `
+      <p class="hint">Who you buy from. On each item, Edit item → Where we buy it takes up to 4 vendors with their price; the order list puts the item under the cheapest.</p>
+      <div class="list">${S.vendors.map((v, i) => `<div class="li"><button class="grow plain" type="button" data-v="${i}"><div class="nm">${esc(v.name)}</div>
+        <div class="sub">${esc([v.contact, v.phone, v.account ? 'Acct # ' + v.account : ''].filter(Boolean).join(' · ') || 'No contact details yet')} · ${nItems(vendorItems(v.name))}</div></button>
+        <button class="mini" type="button" data-vup="${i}" aria-label="Move ${esc(v.name)} up" ${i ? '' : 'disabled'}>↑</button></div>`).join('') || '<div class="empty">No vendors yet.</div>'}</div>
+      <p class="small-note">The order list shows vendors in this order.</p>
+      <button class="btn primary block" type="button" id="vAdd" style="margin-top:10px">+ Add vendor</button>`;
+    $$('[data-v]', sh.body).forEach(b => b.onclick = () => vendorForm(Number(b.dataset.v), draw));
+    $$('[data-vup]', sh.body).forEach(b => b.onclick = async () => {
+      const i = Number(b.dataset.vup), list = S.vendors.slice();
+      [list[i - 1], list[i]] = [list[i], list[i - 1]];
+      try { await saveVendors(list, {}); draw(); } catch (err) { toast(err instanceof NetError ? 'No connection' : err.message, { bad: true }); }
+    });
+    $('#vAdd', sh.body).onclick = () => vendorForm(-1, draw);
   };
   draw();
 };
+function vendorForm(idx, onDone) {
+  const v = idx >= 0 ? S.vendors[idx] : {};
+  const sh = openSheet(idx >= 0 ? v.name : 'New vendor', `<form autocomplete="off">
+    ${VENDOR_FIELDS.map(([k, l, t]) => `<div class="field"><label class="f">${l}</label>${t === 'area'
+      ? `<textarea class="t" name="${k}">${esc(v[k] || '')}</textarea>`
+      : `<input class="t" name="${k}" type="${t === 'url' ? 'text' : t}" ${t === 'url' ? 'inputmode="url"' : ''} value="${esc(v[k] || '')}" ${k === 'name' ? 'required' : ''}>`}</div>`).join('')}
+    <button class="btn primary block" type="submit" style="margin-top:14px">Save</button>
+    ${idx >= 0 ? '<button class="btn ghost block" type="button" data-del style="margin-top:8px;color:var(--accent)">Remove vendor</button>' : ''}</form>`);
+  const f = $('form', sh.body);
+  f.onsubmit = async e => {
+    e.preventDefault();
+    const nv = {};
+    VENDOR_FIELDS.forEach(([k]) => { nv[k] = f[k].value.trim(); });
+    if (!nv.name) return toast('Give the vendor a name', { bad: true });
+    if (S.vendors.some((x, i) => i !== idx && norm(x.name) === norm(nv.name))) return toast('There is already a vendor with that name', { bad: true });
+    const list = S.vendors.slice();
+    if (idx >= 0) list[idx] = nv; else list.push(nv);
+    const btn = $('[type=submit]', f); btn.disabled = true;
+    try {
+      await saveVendors(list, idx >= 0 && v.name !== nv.name ? { [v.name]: nv.name } : {});
+      sh.close(); toast('Saved ' + nv.name); onDone();
+    } catch (err) { btn.disabled = false; toast(err instanceof NetError ? 'No connection' : err.message, { bad: true }); }
+  };
+  const del = $('[data-del]', f);
+  if (del) del.onclick = async () => {
+    const n = vendorItems(v.name);
+    if (!confirm(`Remove ${v.name}?${n ? ` Its prices on ${nItems(n)} are deleted too.` : ''}`)) return;
+    try { await saveVendors(S.vendors.filter((x, i) => i !== idx), {}); sh.close(); toast('Removed ' + v.name); onDone(); }
+    catch (err) { toast(err instanceof NetError ? 'No connection' : err.message, { bad: true }); }
+  };
+}
 
 /* ---------------------------------------- item import */
 $('#itemsFile').onchange = async e => {
@@ -1772,7 +2155,7 @@ function itemsImportPreview(fileName, found) {
       <p class="hint">Pick the categories to bring in. Food specials and other things you don't count are unticked to start with.</p>
       <div class="chips" style="flex-wrap:wrap">${cats.map(c => `<button type="button" class="chip ${on.has(c) ? 'on' : ''}" data-c="${esc(c)}">${esc(c)} (${found.filter(f => (f.category || 'Uncategorized') === c && !f.dup).length})</button>`).join('')}</div>
       <div class="list" style="max-height:38vh;overflow:auto">${rows.slice(0, 300).map(f => `<div class="li"><div class="grow"><div class="nm">${esc(f.name)}</div><div class="sub">${esc(f.category)}${f.upc ? ' · UPC ' + esc(f.upc) : ''}${f.par !== '' ? ' · par ' + fmt(f.par) : ''}</div></div><div class="qty"><b>${fmt(f.onHand)}</b></div></div>`).join('') || '<div class="empty">Nothing selected.</div>'}</div>
-      <button class="btn primary block" type="button" id="doImport" style="margin-top:14px" ${rows.length ? '' : 'disabled'}>Add ${rows.length} items</button>`;
+      <button class="btn primary block" type="button" id="doImport" style="margin-top:14px" ${rows.length ? '' : 'disabled'}>Add ${nItems(rows.length)}</button>`;
     $$('[data-c]', sh.body).forEach(b => b.onclick = () => { const c = b.dataset.c; on.has(c) ? on.delete(c) : on.add(c); draw(); });
     $('#doImport', sh.body).onclick = async ev => {
       const btn = ev.currentTarget; btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Adding…';
@@ -1785,7 +2168,7 @@ function itemsImportPreview(fileName, found) {
           r.items.forEach(upsertLocal); made += r.created;
         }
         renderAll(); sh.close();
-        toast(`Added ${made} items`);
+        toast(`Added ${nItems(made)}`);
       } catch (e) {
         btn.disabled = false; btn.textContent = 'Try again';
         toast(e instanceof NetError ? 'No connection' : e.message, { bad: true, ms: 6000 });
