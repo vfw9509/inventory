@@ -185,6 +185,51 @@ table.prev td.n, table.prev th.n { text-align: right; font-variant-numeric: tabu
 button.plain { background: none; border: 0; padding: 0; text-align: left; color: inherit; font: inherit; min-width: 0; }
 .spot-img { display: block; width: 100%; border-radius: 12px; background: var(--surface-2); min-height: 120px; }
 .spot-thumb { display: block; width: 100%; max-height: 170px; object-fit: cover; border-radius: 10px; margin: 6px 0 8px; background: var(--surface-2); min-height: 60px; }
+/* Shelf labels: Avery 18160 / 5160, letter paper, 3 x 10 labels of 2 5/8" x 1". Printed black on white. */
+#labelPrint { display: none; }
+@media print {
+  @page { size: letter; margin: 0; }
+  body.print-labels { background: #fff !important; }
+  body.print-labels > *:not(#labelPrint) { display: none !important; }
+  body.print-labels #labelPrint { display: block; }
+}
+.lbl-page { width: 8.5in; height: 11in; box-sizing: border-box; padding: 0.5in 0 0 0.1875in; display: grid; grid-template-columns: repeat(3, 2.625in);
+  grid-auto-rows: 1in; column-gap: 0.125in; align-content: start; overflow: hidden; background: #fff; color: #000; break-after: page; page-break-after: always; }
+.lbl-page:last-child, .door-page:last-child { break-after: auto; page-break-after: auto; }
+/* Door sheets: one letter page per storage spot, taped to the front of a cooler or freezer. */
+.door-page { width: 8.5in; height: 11in; box-sizing: border-box; padding: 0.5in 0.55in; display: flex; flex-direction: column; overflow: hidden;
+  background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; break-after: page; page-break-after: always; }
+.door-head { display: flex; align-items: flex-end; gap: 0.2in; border-bottom: 3px solid #000; padding-bottom: 0.08in; }
+.door-head h1 { margin: 0; font-size: 40pt; line-height: 1.05; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.door-head div { font-size: 10pt; text-align: right; white-space: nowrap; }
+.door-table { width: 100%; border-collapse: collapse; margin-top: 0.1in; table-layout: fixed; }
+.door-table th { font-size: 9pt; text-transform: uppercase; letter-spacing: 0.06em; text-align: left; padding: 0.04in 0.06in; border-bottom: 1.5px solid #000; }
+.door-table td { border-bottom: 1px solid #999; padding: 0 0.06in; vertical-align: middle; overflow: hidden; }
+.door-table tr.r td { height: 0.56in; }
+.door-table.nobc tr.r td { height: 0.42in; }
+.door-nm { font-size: 14pt; font-weight: 700; line-height: 1.1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.door-sub { font-size: 8.5pt; color: #333; }
+.door-par { text-align: center; font-size: 20pt; font-weight: 700; line-height: 1; }
+.door-par i { display: block; font-style: normal; font-size: 7.5pt; font-weight: 400; line-height: 1.1; }
+.door-sub { line-height: 1.15; }
+.door-table .lbl-bc { width: 1.6in; height: 0.3in; margin: 0.03in 0 0; }
+.door-table .lbl-code { font-size: 8pt; }
+.door-count { border-left: 1px solid #999; }
+.door-foot { margin-top: auto; padding-top: 0.08in; font-size: 8.5pt; color: #333; display: flex; justify-content: space-between; }
+.lbl { width: 2.625in; height: 1in; box-sizing: border-box; padding: 0.08in 0.1in 0.06in 0.14in; display: flex; gap: 0.06in; overflow: hidden;
+  font-family: Arial, Helvetica, sans-serif; color: #000; }
+.lbl-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.lbl-name { font-size: 10pt; font-weight: 700; line-height: 1.1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.lbl-bc { display: block; width: 1.55in; height: 0.3in; margin-top: auto; }
+.lbl-code { font-size: 6.5pt; letter-spacing: 0.04em; line-height: 1.15; }
+.lbl-sub { font-size: 6.5pt; color: #333; margin-top: auto; }
+.lbl-par { width: 0.5in; flex: none; border-left: 1px solid #000; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.lbl-par span { font-size: 6.5pt; font-weight: 700; letter-spacing: 0.06em; }
+.lbl-par b { font-size: 20pt; line-height: 1; }
+.lbl-par i { font-style: normal; font-size: 6pt; max-width: 0.48in; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.lbl-preview { overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.lbl-preview .lbl-page { transform-origin: 0 0; }
+.lbl-preview .lbl { outline: 1px dashed #c8c8c8; outline-offset: -1px; }
 .spot-mini { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; flex: none; background: var(--surface-2); }
 details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 .spin { width: 18px; height: 18px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: sp .8s linear infinite; display: inline-block; vertical-align: middle; }
@@ -344,6 +389,11 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
         <p class="hint" style="margin:4px 0 10px">Who you buy from: contact, phone, website, account number. Put each item's price at each vendor on the item; the order list puts it under the cheapest.</p>
         <button class="btn block" type="button" id="showVendors">Vendors</button>
       </div>
+      <div class="mgr-only">
+        <b>Shelf labels &amp; door sheets</b>
+        <p class="hint" style="margin:4px 0 10px">Shelf labels: each item's name, barcode and par on Avery 18160 (or 5160) address labels, 30 to a sheet. Door sheets: a full page for the front of a cooler or freezer, listing what's kept inside.</p>
+        <div class="grid2"><button class="btn block" type="button" id="showLabels">Shelf labels</button><button class="btn block" type="button" id="showDoors">Door sheets</button></div>
+      </div>
       <div class="mgr-only hidden" id="demoCopyBox">
         <b>Copy from demo mode</b>
         <p class="hint" style="margin:4px 0 10px">Storage spots, categories or vendors you set up in demo mode on this device can be copied into the Google Sheet.</p>
@@ -373,7 +423,7 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
         <button class="btn block" type="button" id="demoToggle">Try demo mode</button>
       </div>
     </div>
-    <p class="hint" style="text-align:center"><span id="footName"></span> · Inventory scanner v1.6.1<br><a href="https://vfw9509.github.io/inventory/setup.html" style="color:inherit">Set this up for another Post</a></p>
+    <p class="hint" style="text-align:center"><span id="footName"></span> · Inventory scanner v1.6.3<br><a href="https://vfw9509.github.io/inventory/setup.html" style="color:inherit">Set this up for another Post</a></p>
   </section>
 </main>
 
@@ -2590,6 +2640,193 @@ function renderAll() {
   if (S.view === 'count') renderCount();
   if (S.view === 'more') { renderConn(); renderAutoSales(); renderDemoCopy(); }
 }
+
+/* ---------------------------------------- shelf labels (Avery 18160 / 5160) */
+// Barcodes are drawn here (no library), so they print sharp and work offline. UPC-A, EAN-13 and EAN-8 with a good
+// check digit get bars; the app's scanner reads them back to the same code. Anything else prints as digits only.
+const EAN_L = ['0001101', '0011001', '0010011', '0111101', '0100011', '0110001', '0101111', '0111011', '0110111', '0001011'];
+const EAN_G = ['0100111', '0110011', '0011011', '0100001', '0011101', '0111001', '0000101', '0010001', '0001001', '0010111'];
+const EAN_R = ['1110010', '1100110', '1101100', '1000010', '1011100', '1001110', '1010000', '1000100', '1001000', '1110100'];
+const EAN_PARITY = ['LLLLLL', 'LLGLGG', 'LLGGLG', 'LLGGGL', 'LGLLGG', 'LGGLLG', 'LGGGLL', 'LGLGLG', 'LGLGGL', 'LGGLGL'];
+function gtinOk(s) {
+  const d = s.split('').map(Number), check = d.pop();
+  const sum = d.reverse().reduce((t, x, i) => t + x * (i % 2 ? 1 : 3), 0);
+  return (10 - sum % 10) % 10 === check;
+}
+function eanBits(code) {
+  let s = String(code || '');
+  if (!/^\d+$/.test(s) || ![8, 12, 13].includes(s.length) || !gtinOk(s)) return null;
+  if (s.length === 8) return '101' + [...s.slice(0, 4)].map(c => EAN_L[c]).join('') + '01010' + [...s.slice(4)].map(c => EAN_R[c]).join('') + '101';
+  if (s.length === 12) s = '0' + s;
+  const par = EAN_PARITY[s[0]];
+  return '101' + [...s.slice(1, 7)].map((c, i) => (par[i] === 'L' ? EAN_L : EAN_G)[c]).join('') + '01010' + [...s.slice(7)].map(c => EAN_R[c]).join('') + '101';
+}
+function barcodeSvg(code) {
+  const bits = eanBits(code);
+  if (!bits) return '';
+  const q = 9, w = bits.length + q * 2; // quiet zone each side
+  let rects = '';
+  for (let i = 0; i < bits.length;) {
+    if (bits[i] !== '1') { i++; continue; }
+    let j = i; while (bits[j] === '1') j++;
+    rects += `<rect x="${i + q}" y="0" width="${j - i}" height="30"/>`;
+    i = j;
+  }
+  return `<svg class="lbl-bc" viewBox="0 0 ${w} 30" preserveAspectRatio="none" shape-rendering="crispEdges" fill="#000" aria-hidden="true">${rects}</svg>`;
+}
+// Prints full letter pages (8.5" x 11" divs) and nothing else of the app, then tidies up.
+function printPages(pages) {
+  let host = $('#labelPrint');
+  if (!host) { host = document.createElement('div'); host.id = 'labelPrint'; document.body.appendChild(host); }
+  host.innerHTML = pages.join('');
+  document.body.classList.add('print-labels');
+  const done = () => { document.body.classList.remove('print-labels'); host.innerHTML = ''; window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  setTimeout(() => window.print(), 50);
+}
+// Shows page 1 of a print job shrunk to the width of the screen.
+function previewPage(host, pageHtml) {
+  host.innerHTML = pageHtml || '';
+  host.style.display = pageHtml ? '' : 'none';
+  const page = host.firstElementChild;
+  if (page) { const k = host.clientWidth / (8.5 * 96); page.style.transformOrigin = '0 0'; page.style.transform = `scale(${k})`; host.style.height = (11 * 96 * k) + 'px'; }
+}
+const LABELS_PER_SHEET = 30;
+function labelHtml(it, withBarcode) {
+  const code = it.upc || it.caseUpc || '';
+  const bars = withBarcode && code ? barcodeSvg(code) : '';
+  const par = num(it.par);
+  return `<div class="lbl"><div class="lbl-main"><div class="lbl-name">${esc(it.name)}</div>
+    ${bars}${code ? `<div class="lbl-code">${esc(code)}${!it.upc ? ' (case)' : ''}</div>` : `<div class="lbl-sub">${esc(it.spot || it.category || '')}</div>`}</div>
+    <div class="lbl-par"><span>PAR</span><b>${par === null ? '&nbsp;' : fmt(par)}</b>${par !== null && it.unit ? `<i>${esc(it.unit)}</i>` : ''}</div></div>`;
+}
+// Pages of 30; `skip` blank labels first, to use up a sheet that was partly used before.
+function labelPages(list, skip, withBarcode) {
+  const cells = Array(skip).fill('<div class="lbl"></div>').concat(list.map(it => labelHtml(it, withBarcode)));
+  const pages = [];
+  for (let i = 0; i < cells.length; i += LABELS_PER_SHEET) pages.push(`<div class="lbl-page">${cells.slice(i, i + LABELS_PER_SHEET).join('')}</div>`);
+  return pages;
+}
+$('#showLabels').onclick = () => {
+  const o = { cat: '', spot: '', onlyPar: false, onlyCode: false, sort: 'spot', start: 1, barcode: true };
+  const spotRank = s => { const i = S.spots.indexOf(s); return s ? (i < 0 ? S.spots.length : i) : S.spots.length + 1; };
+  const pick = () => visibleItems()
+    .filter(i => (!o.cat || i.category === o.cat) && (!o.spot || i.spot === o.spot))
+    .filter(i => (!o.onlyPar || num(i.par) !== null) && (!o.onlyCode || i.upc || i.caseUpc))
+    .sort((a, b) => o.sort === 'spot' ? spotRank(a.spot) - spotRank(b.spot) || byCategory(a, b) : o.sort === 'name' ? a.name.localeCompare(b.name) : byCategory(a, b));
+  const cats = categories().filter(c => visibleItems().some(i => i.category === c));
+  const spots = S.spots.filter(s => visibleItems().some(i => i.spot === s));
+  const sh = openSheet('Shelf labels', `
+    <p class="hint">For Avery 18160 or 5160 address labels: 30 per sheet, 2⅝" × 1". Each label shows the item's name, barcode and par.</p>
+    <div class="grid2">
+      <div><label class="f">Category</label><select class="t" data-o="cat"><option value="">All</option>${cats.map(c => `<option>${esc(c)}</option>`).join('')}</select></div>
+      <div><label class="f">Storage spot</label><select class="t" data-o="spot"><option value="">All</option>${spots.map(s => `<option>${esc(s)}</option>`).join('')}</select></div>
+      <div><label class="f">Order</label><select class="t" data-o="sort"><option value="spot">By storage spot</option><option value="category">By category</option><option value="name">A to Z</option></select></div>
+      <div><label class="f">Start at label</label><input class="t" data-o="start" type="number" inputmode="numeric" min="1" max="30" value="1"></div>
+    </div>
+    <div class="small-note" style="margin:4px 0 8px">Start at label: to use up a sheet you already used part of. Labels count across, then down (1–3 is the top row).</div>
+    <label class="row" style="gap:8px;margin:6px 0"><input type="checkbox" data-o="onlyPar"> Only items with a par</label>
+    <label class="row" style="gap:8px;margin:6px 0"><input type="checkbox" data-o="onlyCode"> Only items with a barcode</label>
+    <label class="row" style="gap:8px;margin:6px 0"><input type="checkbox" data-o="barcode" checked> Print the barcode</label>
+    <div class="small-note">Scanning a shelf label works like scanning the bottle, so during a count scan the bottles, not the label.</div>
+    <h3 id="lblCount"></h3>
+    <div class="lbl-preview" id="lblPreview"></div>
+    <div class="small-note" id="lblMore" style="margin-top:4px"></div>
+    <button class="btn primary block" type="button" id="lblPrint" style="margin-top:12px">Print labels</button>
+    <button class="btn block" type="button" id="lblExcel" style="margin-top:8px">Download for Avery Design &amp; Print (Excel)</button>
+    <p class="small-note">Printing: pick Letter paper, scale 100% (Actual size), margins None or Default, and turn off headers and footers. Print one page on plain paper first and hold it up to a label sheet to check it lines up.</p>`);
+  const draw = () => {
+    const list = pick(), skip = o.start - 1;
+    const sheets = Math.ceil((list.length + skip) / LABELS_PER_SHEET);
+    $('#lblCount', sh.body).textContent = list.length ? `${list.length} ${list.length === 1 ? 'label' : 'labels'} · ${sheets} ${sheets === 1 ? 'sheet' : 'sheets'}` : 'No items match';
+    const host = $('#lblPreview', sh.body);
+    host.innerHTML = list.length ? labelPages(list, skip, o.barcode)[0] : '';
+    host.style.display = list.length ? '' : 'none';
+    // Scale the 8.5" page down to the screen; the print uses the real size.
+    const page = $('.lbl-page', host);
+    if (page) { const k = host.clientWidth / (8.5 * 96); page.style.transform = `scale(${k})`; host.style.height = (11 * 96 * k) + 'px'; }
+    $('#lblMore', sh.body).textContent = sheets > 1 ? `Showing sheet 1 of ${sheets}.` : '';
+    $('#lblPrint', sh.body).disabled = $('#lblExcel', sh.body).disabled = !list.length;
+  };
+  $$('[data-o]', sh.body).forEach(el => el.onchange = el.oninput = () => {
+    const k = el.dataset.o;
+    if (el.type === 'checkbox') o[k] = el.checked;
+    else if (k === 'start') o.start = Math.min(30, Math.max(1, Math.round(Number(el.value) || 1)));
+    else o[k] = el.value;
+    draw();
+  });
+  $('#lblPrint', sh.body).onclick = () => printPages(labelPages(pick(), o.start - 1, o.barcode));
+  $('#lblExcel', sh.body).onclick = () => exportExcel(pick().map(i => ({
+    Name: i.name, UPC: i.upc || i.caseUpc || '', Par: num(i.par) === null ? '' : num(i.par), Unit: i.unit || '', 'Storage spot': i.spot || '', Category: i.category || ''
+  })), `${FILE_TAG}_Shelf_Labels_${stamp()}.xlsx`, 'Labels');
+  draw();
+};
+
+/* ---------------------------------------- door sheets (a full page per storage spot) */
+function doorPages(spot, items, o) {
+  const date = new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  const rowHtml = it => {
+    const code = it.upc || it.caseUpc || '', par = num(it.par);
+    return `<tr class="r"><td><div class="door-nm">${esc(it.name)}</div>${it.category ? `<div class="door-sub">${esc(it.category)}</div>` : ''}</td>
+      <td class="door-par">${par === null ? '' : fmt(par)}${par !== null && it.unit ? `<i>${esc(it.unit)}</i>` : ''}</td>
+      ${o.barcode ? `<td>${code ? barcodeSvg(code) + `<div class="lbl-code">${esc(code)}${it.upc ? '' : ' (case)'}</div>` : '<div class="door-sub">no barcode</div>'}</td>` : ''}
+      ${o.count ? '<td class="door-count"></td>' : ''}</tr>`;
+  };
+  const pageHtml = (rows, pageNote) => `<div class="door-page">
+    <div class="door-head"><h1>${esc(spot)}</h1><div>${esc(POST.name)}<br>${nItems(items.length)}${pageNote}</div></div>
+    <table class="door-table${o.barcode ? '' : ' nobc'}"><colgroup><col><col style="width:0.85in">${o.barcode ? '<col style="width:1.85in">' : ''}${o.count ? '<col style="width:1.1in">' : ''}</colgroup>
+      <thead><tr><th>Item</th><th style="text-align:center">Par</th>${o.barcode ? '<th>Barcode</th>' : ''}${o.count ? '<th class="door-count">Count</th>' : ''}</tr></thead>
+      <tbody>${rows}</tbody></table>
+    <div class="door-foot"><span>Printed ${esc(date)}</span><span>${o.barcode ? 'When counting, scan the bottles, not this sheet.' : ''}</span></div></div>`;
+  // Fill each page by measuring, so names that wrap to two lines never push rows off the bottom.
+  const meas = document.createElement('div');
+  meas.style.cssText = 'position:absolute;left:-10000px;top:0;visibility:hidden';
+  document.body.appendChild(meas);
+  const chunks = [];
+  let cur = [], body = null, page = null;
+  const fresh = () => { meas.innerHTML = pageHtml('', ' · page 9 of 9'); page = meas.firstElementChild; body = $('tbody', page); cur = []; };
+  fresh();
+  items.forEach(it => {
+    body.insertAdjacentHTML('beforeend', rowHtml(it));
+    if (page.scrollHeight > page.clientHeight + 1 && cur.length) { chunks.push(cur); fresh(); body.insertAdjacentHTML('beforeend', rowHtml(it)); }
+    cur.push(it);
+  });
+  chunks.push(cur);
+  meas.remove();
+  return chunks.map((list, p) => pageHtml(list.map(rowHtml).join(''), chunks.length > 1 ? ` · page ${p + 1} of ${chunks.length}` : ''));
+}
+$('#showDoors').onclick = () => {
+  const itemsIn = s => visibleItems().filter(i => i.spot === s).sort(byCategory);
+  const spots = S.spots.filter(s => itemsIn(s).length);
+  if (!spots.length) return toast('No items have a storage spot yet. Set one in Edit item → Kept where.', { bad: true, ms: 5000 });
+  const o = { pick: spots.filter(s => /cool|freez|walk/i.test(s)), barcode: true, count: false };
+  if (!o.pick.length) o.pick = [spots[0]];
+  const box = (attr, on, text) => `<label class="row" style="gap:8px;margin:6px 0"><input type="checkbox" ${attr} ${on ? 'checked' : ''} style="width:20px;height:20px;flex:none"> ${text}</label>`;
+  const sh = openSheet('Door sheets', `
+    <p class="hint">A full page for the front of a cooler or freezer: the spot's name in big letters, then everything kept there with its par. One page per spot, or more if it holds a lot.</p>
+    <h3>Spots</h3>
+    <div class="list">${spots.map(s => `<label class="li" style="gap:10px"><input type="checkbox" data-s="${esc(s)}" ${o.pick.includes(s) ? 'checked' : ''} style="width:20px;height:20px;flex:none">
+      <div class="grow"><div class="nm">${esc(s)}</div></div><span class="small-note">${nItems(itemsIn(s).length)}</span></label>`).join('')}</div>
+    ${box('data-d="barcode"', true, 'Print barcodes')}
+    ${box('data-d="count"', false, 'Add a blank column to write counts')}
+    <h3 id="doorCount"></h3>
+    <div class="lbl-preview" id="doorPreview"></div>
+    <div class="small-note" id="doorMore" style="margin-top:4px"></div>
+    <button class="btn primary block" type="button" id="doorPrint" style="margin-top:12px">Print door sheets</button>
+    <p class="small-note">Printing: Letter paper, scale 100% (Actual size), and turn off headers and footers. A sheet protector keeps the page from getting soggy on a cold door.</p>`);
+  const pages = () => spots.filter(s => o.pick.includes(s)).flatMap(s => doorPages(s, itemsIn(s), o));
+  const draw = () => {
+    const p = pages();
+    $('#doorCount', sh.body).textContent = p.length ? `${p.length} ${p.length === 1 ? 'page' : 'pages'}` : 'Tick at least one spot';
+    previewPage($('#doorPreview', sh.body), p[0]);
+    $('#doorMore', sh.body).textContent = p.length > 1 ? `Showing page 1 of ${p.length}.` : '';
+    $('#doorPrint', sh.body).disabled = !p.length;
+  };
+  $$('[data-s]', sh.body).forEach(c => c.onchange = () => { o.pick = $$('[data-s]', sh.body).filter(x => x.checked).map(x => x.dataset.s); draw(); });
+  $$('[data-d]', sh.body).forEach(c => c.onchange = () => { o[c.dataset.d] = c.checked; draw(); });
+  $('#doorPrint', sh.body).onclick = () => printPages(pages());
+  draw();
+};
 
 /* ---------------------------------------- copy demo-mode setup to the sheet (manager) */
 // Demo mode keeps its data on this device (LS.demo), even after going back to the sheet. This copies its storage
