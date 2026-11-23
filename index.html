@@ -344,6 +344,11 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
         <p class="hint" style="margin:4px 0 10px">Who you buy from: contact, phone, website, account number. Put each item's price at each vendor on the item; the order list puts it under the cheapest.</p>
         <button class="btn block" type="button" id="showVendors">Vendors</button>
       </div>
+      <div class="mgr-only hidden" id="demoCopyBox">
+        <b>Copy from demo mode</b>
+        <p class="hint" style="margin:4px 0 10px">Storage spots, categories or vendors you set up in demo mode on this device can be copied into the Google Sheet.</p>
+        <button class="btn block" type="button" id="showDemoCopy">Copy from demo mode</button>
+      </div>
     </div>
 
     <h3>Reports</h3>
@@ -361,7 +366,14 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
         <button class="btn block" type="button" id="showStaff">Staff &amp; PINs</button>
       </div>
     </div>
-    <p class="hint" style="text-align:center"><span id="footName"></span> · Inventory scanner v1.6<br><a href="https://vfw9509.github.io/inventory/setup.html" style="color:inherit">Set this up for another Post</a></p>
+    <div id="demoCard" class="hidden">
+      <h3>Demo mode</h3>
+      <div class="card stack">
+        <p class="hint" style="margin:0">For trying the app with made-up items. Nothing done in demo mode reaches the Google Sheet, and this device stops using the sheet until you leave demo mode.</p>
+        <button class="btn block" type="button" id="demoToggle">Try demo mode</button>
+      </div>
+    </div>
+    <p class="hint" style="text-align:center"><span id="footName"></span> · Inventory scanner v1.6.1<br><a href="https://vfw9509.github.io/inventory/setup.html" style="color:inherit">Set this up for another Post</a></p>
   </section>
 </main>
 
@@ -2513,17 +2525,14 @@ function renderConn() {
   const nameNote = S.me ? `Set by your PIN: you're signed in as <b>${esc(S.me)}</b>.` : 'Shows up in the log. Not needed if you have your own PIN.';
   $('#connCard').innerHTML = `
     <div class="row"><b class="grow">Connection</b>${status}</div>
-    ${isDemo() ? '<div class="banner warn">Demo mode keeps data on this phone only. Paste the Google Sheet web app URL to go live.</div>' : ''}
+    ${isDemo() ? '<div class="banner warn">Demo mode: made-up data, kept on this device only. Nothing reaches the Google Sheet.</div><button class="btn primary block" type="button" id="demoLeave">Leave demo mode</button>' : ''}
     <form id="cfgForm" class="stack" autocomplete="off">
       <div><label class="f" for="cfgPin">PIN</label><input class="t" id="cfgPin" type="password" inputmode="numeric" value="${esc(c.pin)}" placeholder="Your PIN" autocomplete="off"></div>
       <div><label class="f" for="cfgUser">Your name</label><input class="t" id="cfgUser" value="${esc(c.user)}" placeholder="First and last name" autocomplete="name" ${S.me ? 'readonly' : ''}><div class="small-note">${nameNote}</div></div>
       <div><label class="f" for="cfgApi">Google Sheet web app URL</label><input class="t" id="cfgApi" value="${esc(c.api)}" placeholder="https://script.google.com/macros/s/…/exec" inputmode="url" autocapitalize="off" spellcheck="false"></div>
       <button class="btn primary block" type="submit">Save &amp; connect</button>
     </form>
-    <div class="grid2">
-      <button class="btn small" type="button" id="shareSetup" ${c.api ? '' : 'disabled'}>Share setup link</button>
-      <button class="btn small" type="button" id="demoToggle">${c.demo && !c.api ? 'Leave demo' : 'Try demo mode'}</button>
-    </div>
+    <button class="btn small block" type="button" id="shareSetup" ${c.api ? '' : 'disabled'}>Share setup link</button>
     <p class="small-note">The setup link fills in the sheet URL for bartenders. It does not include a PIN; each person types their own.</p>`;
   $('#cfgForm').onsubmit = async e => {
     e.preventDefault();
@@ -2542,9 +2551,13 @@ function renderConn() {
     try { if (navigator.share) await navigator.share({ title: POST.name + ' Inventory', url: link }); else { await navigator.clipboard.writeText(link); toast('Setup link copied'); } }
     catch (e) { if (e.name !== 'AbortError') prompt('Copy this link:', link); }
   };
-  $('#demoToggle').onclick = async () => {
+  // Demo mode lives at the bottom of More, for managers (and a brand-new setup), so nobody lands in it by accident.
+  // Leaving it is right here at the top while it's on.
+  $('#demoCard').classList.toggle('hidden', !(isDemo() || isManager() || (!c.api && !c.demo)));
+  const toggleDemo = async () => {
     if (S.cfg.api) {
-      if (!confirm('Disconnect from the Google Sheet and use demo mode on this phone?')) return;
+      if (S.queue.length) return toast(`${S.queue.length} change(s) haven't reached the sheet yet. Wait until they sync, then try again.`, { bad: true, ms: 6000 });
+      if (!confirm('Switch this device to demo mode?\n\nDemo mode uses made-up items. Nothing you do there reaches the Google Sheet, and this device stops using the sheet until you tap Leave demo mode.')) return;
       S.cfg.api = ''; S.cfg.demo = true;
     } else {
       S.cfg.api = S.cfg.demo ? DEFAULT_API : ''; S.cfg.demo = !S.cfg.demo;
@@ -2552,7 +2565,11 @@ function renderConn() {
     save(LS.cfg, S.cfg);
     S.role = null; S.items = []; S.queue = []; save(LS.queue, []); S.lastPull = 0;
     await pull(true); renderConn();
+    window.scrollTo(0, 0);
   };
+  $('#demoToggle').textContent = isDemo() ? 'Leave demo mode' : 'Try demo mode';
+  $('#demoToggle').onclick = toggleDemo;
+  if ($('#demoLeave')) $('#demoLeave').onclick = toggleDemo;
 }
 
 /* =========================================================== nav & boot */
@@ -2571,15 +2588,135 @@ function renderAll() {
   renderRecent(); renderOrder(); renderDue();
   if (S.view === 'items') renderItems();
   if (S.view === 'count') renderCount();
-  if (S.view === 'more') { renderConn(); renderAutoSales(); }
+  if (S.view === 'more') { renderConn(); renderAutoSales(); renderDemoCopy(); }
 }
+
+/* ---------------------------------------- copy demo-mode setup to the sheet (manager) */
+// Demo mode keeps its data on this device (LS.demo), even after going back to the sheet. This copies its storage
+// spots, categories, vendors and vendor prices across. The made-up sample vendors start unticked.
+const SAMPLE_VENDORS = ['valley beverage|vb-1001', 'tri-county distributing|tc-22'];
+const isSampleVendor = v => SAMPLE_VENDORS.includes(norm(v.name) + '|' + norm(v.account));
+const sameList = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+function demoCopyPlan() {
+  const db = load(LS.demo, null);
+  if (!db || S.cfg.demo || !S.cfg.api || !isManager()) return null;
+  const plan = { spots: null, keepSpots: [], dropSpots: [], categories: null, vendors: [], prices: [] };
+  if (Array.isArray(db.spots) && db.spots.length) {
+    // Spots on the sheet that items or a photo still use stay, so nothing is left without a spot and no photo is lost.
+    S.spots.forEach(s => {
+      if (db.spots.some(d => norm(d) === norm(s))) return;
+      if (S.items.some(i => norm(i.spot) === norm(s)) || S.photos[s]) plan.keepSpots.push(s); else plan.dropSpots.push(s);
+    });
+    if (!sameList(db.spots.concat(plan.keepSpots), S.spots)) plan.spots = db.spots.slice();
+  }
+  const liveCats = S.categories.length ? S.categories : DEFAULT_CATEGORIES;
+  if (Array.isArray(db.categories) && db.categories.length && !sameList(db.categories, liveCats)) plan.categories = db.categories.slice();
+  const liveV = name => S.vendors.find(x => norm(x.name) === norm(name));
+  plan.vendors = (db.vendors || []).filter(v => v && v.name).filter(v => {
+    const lv = liveV(v.name);
+    return !lv || VENDOR_FIELDS.some(([k]) => v[k] && v[k] !== (lv[k] || ''));
+  }).map(v => Object.assign({}, v, { sample: isSampleVendor(v), update: !!liveV(v.name) }));
+  // Prices set in demo mode, matched to the sheet's items by name.
+  const byName = {};
+  S.items.forEach(i => { byName[norm(i.name)] = i; });
+  (db.items || []).forEach(di => {
+    const li = byName[norm(di.name)];
+    ((db.prices || {})[di.id] || []).forEach(x => {
+      if (!li || x.price === '' || x.price === null) return;
+      const have = (S.prices[li.id] || []).find(p => norm(p.vendor) === norm(x.vendor));
+      if (have && have.price === x.price) return;
+      const dv = (db.vendors || []).find(v => norm(v.name) === norm(x.vendor));
+      plan.prices.push({ id: li.id, name: li.name, vendor: x.vendor, price: x.price, sample: !!(dv && isSampleVendor(dv)) });
+    });
+  });
+  const worth = plan.spots || plan.categories || plan.vendors.some(v => !v.sample) || plan.prices.some(p => !p.sample);
+  return worth ? plan : null;
+}
+function renderDemoCopy() {
+  const box = $('#demoCopyBox');
+  if (box) box.classList.toggle('hidden', !demoCopyPlan());
+}
+$('#showDemoCopy').onclick = () => {
+  const plan = demoCopyPlan();
+  if (!plan) return toast('Nothing new to copy from demo mode');
+  const sh = openSheet('Copy from demo mode', '');
+  const check = (id, on, label, sub) => `<label class="li" style="gap:10px;align-items:flex-start"><input type="checkbox" data-c="${id}" ${on ? 'checked' : ''} style="margin-top:4px;width:20px;height:20px;flex:none">
+    <div class="grow"><div class="nm" style="white-space:normal">${label}</div>${sub ? `<div class="small-note">${sub}</div>` : ''}</div></label>`;
+  const vSub = v => [v.update ? 'updates the one on the sheet' : 'new', v.sample ? 'made-up sample from demo mode' : '',
+    [v.contact, v.phone, v.account ? 'Acct # ' + v.account : ''].filter(Boolean).join(' · ')].filter(Boolean).map(esc).join(' · ');
+  sh.body.innerHTML = `
+    <p class="hint">This is what you set up in demo mode on this device. Tick what to copy into the Google Sheet. Items, counts and the log are not copied.</p>
+    ${plan.spots ? `<h3>Storage spots</h3><div class="list">${check('spots', true, esc(plan.spots.join(' · ')),
+      [plan.keepSpots.length ? `Also kept, because items or a photo use them: ${esc(plan.keepSpots.join(', '))}` : '',
+       plan.dropSpots.length ? `No longer listed (nothing uses them): ${esc(plan.dropSpots.join(', '))}` : ''].filter(Boolean).join('<br>'))}</div>` : ''}
+    ${plan.categories ? `<h3>Categories</h3><div class="list">${check('cats', true, esc(plan.categories.join(' · ')), 'Replaces the category list. Categories already on items still show.')}</div>` : ''}
+    ${plan.vendors.length ? `<h3>Vendors</h3><div class="list">${plan.vendors.map((v, i) => check('v' + i, !v.sample, esc(v.name), vSub(v))).join('')}</div>` : ''}
+    ${plan.prices.length ? `<h3>Vendor prices</h3><p class="small-note">For items with the same name on the sheet. A price is only copied if its vendor is on the sheet or ticked above.</p>
+      <div class="list">${plan.prices.map((p, i) => check('p' + i, !p.sample, `${esc(p.name)}: ${esc(p.vendor)} ${money2(p.price)}`, p.sample ? 'made-up sample price' : '')).join('')}</div>` : ''}
+    <button class="btn primary block" type="button" id="dcGo" style="margin-top:14px">Copy to the sheet</button>`;
+  $('#dcGo', sh.body).onclick = async e => {
+    const btn = e.currentTarget;
+    const on = id => { const c = $(`[data-c="${id}"]`, sh.body); return !!(c && c.checked); };
+    btn.disabled = true; btn.textContent = 'Copying…';
+    const done = [];
+    try {
+      if (plan.spots && on('spots')) {
+        const r = await api('saveSpots', { spots: plan.spots.concat(plan.keepSpots), renames: {} });
+        if (!r.ok) throw new Error(r.error);
+        S.spots = r.spots; save(LS.spots, S.spots);
+        if (r.photos) { S.photos = r.photos; save(LS.photos, S.photos); }
+        done.push('storage spots');
+      }
+      if (plan.categories && on('cats')) {
+        const r = await api('saveCategories', { categories: plan.categories, renames: {} });
+        if (!r.ok) throw new Error(r.error);
+        S.categories = r.categories; save(LS.categories, S.categories);
+        done.push('categories');
+      }
+      const pick = plan.vendors.filter((v, i) => on('v' + i));
+      if (pick.length) {
+        const list = S.vendors.map(lv => {
+          const d = pick.find(v => norm(v.name) === norm(lv.name));
+          if (!d) return lv;
+          const merged = Object.assign({}, lv);
+          VENDOR_FIELDS.forEach(([k]) => { if (d[k]) merged[k] = d[k]; });
+          return merged;
+        });
+        pick.filter(v => !v.update).forEach(v => { const nv = {}; VENDOR_FIELDS.forEach(([k]) => { nv[k] = v[k] || ''; }); list.push(nv); });
+        await saveVendors(list, {});
+        done.push(nItems(pick.length).replace('item', 'vendor'));
+      }
+      const onSheet = name => S.vendors.some(v => norm(v.name) === norm(name));
+      const prices = plan.prices.filter((p, i) => on('p' + i) && onSheet(p.vendor));
+      const byItem = {};
+      prices.forEach(p => { (byItem[p.id] = byItem[p.id] || []).push(p); });
+      for (const id of Object.keys(byItem)) {
+        const list = (S.prices[id] || []).map(p => ({ vendor: p.vendor, price: p.price }));
+        byItem[id].forEach(p => {
+          const i = list.findIndex(x => norm(x.vendor) === norm(p.vendor));
+          if (i >= 0) list[i].price = p.price; else list.push({ vendor: p.vendor, price: p.price });
+        });
+        const r = await api('saveItem', { item: { id, prices: sortPrices(list).slice(0, 4) } });
+        if (!r.ok) throw new Error(r.error);
+      }
+      if (prices.length) done.push(prices.length === 1 ? '1 price' : prices.length + ' prices');
+      sh.close();
+      await pull(true, true);
+      toast(done.length ? 'Copied ' + done.join(', ') : 'Nothing was ticked');
+    } catch (err) {
+      btn.disabled = false; btn.textContent = 'Copy to the sheet';
+      toast((err instanceof NetError ? 'No connection' : err.message) + (done.length ? ` (already copied: ${done.join(', ')})` : ''), { bad: true, ms: 6000 });
+      renderAll();
+    }
+  };
+};
 
 /* ---------------------------------------- SkyTab daily email (status + linking) */
 let autoSalesAt = 0;
 async function renderAutoSales(force) {
   const host = $('#autoSales');
   if (!host || !POST.skytab || !isManager()) return;
-  if (isDemo()) { host.innerHTML = '<p class="hint" style="margin:4px 0 0">Not available in demo mode.</p>'; return; }
+  if (isDemo()) { autoSalesAt = 0; host.innerHTML = '<p class="hint" style="margin:4px 0 0">Not available in demo mode.</p>'; return; }
   if (!force && Date.now() - autoSalesAt < 60000) return;
   autoSalesAt = Date.now();
   try {
@@ -2633,7 +2770,7 @@ function drawAutoSales(st) {
     history.replaceState(null, '', location.pathname + location.search);
   }
   renderPill(); renderAll();
-  if (!S.cfg.api && !S.cfg.demo) { showView('more'); toast('Welcome! Connect to the sheet, or try demo mode first.', { ms: 5000 }); }
+  if (!S.cfg.api && !S.cfg.demo) { showView('more'); toast('Welcome! Connect to the sheet, or try demo mode at the bottom of this page.', { ms: 5000 }); }
   else if (!S.cfg.pin && !isDemo()) { showView('more'); toast('Enter your name and PIN to start'); }
   else pull(true, true).then(() => flush());
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
