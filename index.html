@@ -97,6 +97,12 @@ textarea.t { min-height: 70px; resize: vertical; }
 .reader-stop { position: absolute; top: 8px; right: 8px; z-index: 3; }
 .flash { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 4; background: rgba(25,121,74,.92); color: #fff; border-radius: 12px; padding: 10px 12px; font-weight: 650; display: none; }
 .flash.on { display: block; }
+.rl { border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin-top: 8px; background: var(--surface); }
+.rl.off { border-color: var(--accent); }
+.rl .stepper { flex: 1 1 140px; }
+.rl .stepper button { width: 44px; font-size: 20px; }
+.rl .stepper input { font-size: 20px; padding: 4px 0; }
+.rl select.t { flex: 1 1 120px; width: auto; }
 
 .list { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
 .li { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-top: 1px solid var(--line); background: none; border-left: 0; border-right: 0; border-bottom: 0; width: 100%; text-align: left; }
@@ -196,6 +202,12 @@ button.plain { background: none; border: 0; padding: 0; text-align: left; color:
 .lbl-page { width: 8.5in; height: 11in; box-sizing: border-box; padding: 0.5in 0 0 0.1875in; display: grid; grid-template-columns: repeat(3, 2.625in);
   grid-auto-rows: 1in; column-gap: 0.125in; align-content: start; overflow: hidden; background: #fff; color: #000; break-after: page; page-break-after: always; }
 .lbl-page:last-child, .door-page:last-child { break-after: auto; page-break-after: auto; }
+/* Printer adjustment: each page sits in a sheet that clips, and the labels are moved and sized inside it to undo a
+   printer that shrinks or shifts the page. Outlines are for a test print on plain paper. */
+.lbl-sheet { width: 8.5in; height: 11in; overflow: hidden; break-after: page; page-break-after: always; }
+.lbl-sheet:last-child { break-after: auto; page-break-after: auto; }
+.lbl-sheet .lbl-page { break-after: auto; page-break-after: auto; transform-origin: 4.25in 5.5in; }
+.lbl-outline .lbl { outline: 0.5pt solid #777; outline-offset: -0.5pt; }
 /* Door sheets: one letter page per storage spot, taped to the front of a cooler or freezer. */
 .door-page { width: 8.5in; height: 11in; box-sizing: border-box; padding: 0.5in 0.55in; display: flex; flex-direction: column; overflow: hidden;
   background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; break-after: page; page-break-after: always; }
@@ -235,6 +247,11 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 .spin { width: 18px; height: 18px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: sp .8s linear infinite; display: inline-block; vertical-align: middle; }
 @keyframes sp { to { transform: rotate(360deg); } }
 .hidden { display: none !important; }
+.osel { border: 1px solid var(--line); border-radius: 8px; padding: 6px 4px; background: var(--surface); color: inherit; font: inherit; font-weight: 650; max-width: 150px; }
+.cboxes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; align-items: flex-end; }
+.cbox { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); }
+.cbox .count-n { width: 76px; }
+.crow.done { box-shadow: inset 4px 0 0 var(--ok); }
 .count-n { min-width: 64px; text-align: center; font-weight: 700; font-size: 18px; border: 1px solid var(--line); border-radius: 10px; padding: 6px 4px; background: var(--surface); }
 .mini { width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); font-size: 20px; font-weight: 700; flex: none; }
 .mini[disabled] { opacity: .35; }
@@ -250,8 +267,11 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 </header>
 
 <main>
-  <!-- SCAN -->
+  <!-- RECEIVE AN ORDER (the view is still called "scan" inside the code) -->
   <section class="view on" id="v-scan">
+    <h2>Receive an order</h2>
+    <p class="hint" style="margin:-4px 0 10px">Scan each case, pack or bottle that came in, or pick it from the list. Fix the numbers, then save it all at once.</p>
+    <div id="rcvCheck"></div>
     <div class="reader-wrap" id="wrap-scan">
       <div id="reader-scan"></div>
       <div class="reader-cover" id="cover-scan">
@@ -260,9 +280,10 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M10 8v8M13 8v8M17 8v8"/></svg>
             Start scanning
           </button>
-          <small>Point the camera at a bottle or case barcode</small>
+          <small>Each scan adds one to the list: a case barcode adds a case</small>
         </div>
       </div>
+      <div class="flash" id="rcvFlash"></div>
       <button class="btn small reader-stop hidden" type="button" data-cam-stop>Stop</button>
     </div>
     <form class="row" id="manualForm" autocomplete="off">
@@ -276,7 +297,9 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
         <input type="file" accept="image/*" capture="environment" id="photoScan" class="hidden">
       </label>
     </div>
+    <div class="grid2" style="margin-top:10px"><button class="btn small" type="button" id="rcvPick">Pick from the list</button><button class="btn small" type="button" id="rcvNew">+ New item</button></div>
     <div id="scanDue"></div>
+    <div id="rcvLines"></div>
     <h3>This shift</h3>
     <div class="list" id="recentList"><div class="empty">Scan something to get started.</div></div>
   </section>
@@ -297,7 +320,7 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
     <div id="countIdle">
       <h2>Inventory count</h2>
       <div id="countDue"></div>
-      <p class="hint">Walk each storage spot and scan every bottle, can or case (each scan adds one), or type the number into the checklist. Partial bottles: 0.5. Kegs and syrup boxes: count only the <b>full</b> ones; the open one is tracked by sales. When you finish, the counts replace what's on the sheet. Items you skip stay the same.</p>
+      <p class="hint">Pick a spot and go down the list. Each item has a box for each way it's kept: cases, 6-packs, single bottles. Type what you see (or scan: a case barcode adds a case) and the app adds it up. Liquor: full bottles and open ones; the app works out what's left in the open ones from sales. Kegs and syrup boxes: count only the <b>full</b> ones. When you finish, the counts replace what's on the sheet. Items you skip stay the same.</p>
       <p class="hint" data-skytab><b>Count while the bar is closed</b>: before it opens (on event days, before the event starts) or after close. Drinks poured during a count make it look like bottles are missing.</p>
       <div class="stack" id="countStart"></div>
     </div>
@@ -400,6 +423,11 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
         <div class="grid2"><button class="btn block" type="button" id="bulkDown">Download for bulk edit</button>
           <label class="btn block">Upload bulk edit<input type="file" id="bulkFile" class="hidden" accept=".xlsx,.xls,.csv"></label></div>
       </div>
+      <div class="mgr-only">
+        <b>Check deliveries against the order</b>
+        <p class="hint" style="margin:4px 0 10px">A try-out: Receive gets a "Check in an order" box that fills the list from the Order list for one vendor, and flags what doesn't match. This phone only.</p>
+        <label class="row" style="gap:8px"><input type="checkbox" id="rcvCheckToggle"> Turn it on</label>
+      </div>
       <div class="mgr-only hidden" id="demoCopyBox">
         <b>Copy from demo mode</b>
         <p class="hint" style="margin:4px 0 10px">Storage spots, categories or vendors you set up in demo mode on this device can be copied into the Google Sheet.</p>
@@ -429,12 +457,12 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
         <button class="btn block" type="button" id="demoToggle">Try demo mode</button>
       </div>
     </div>
-    <p class="hint" style="text-align:center"><span id="footName"></span> · Inventory scanner v1.8<br><a href="https://vfw9509.github.io/inventory/setup.html" style="color:inherit">Set this up for another Post</a></p>
+    <p class="hint" style="text-align:center"><span id="footName"></span> · Inventory scanner v1.9<br><a href="https://vfw9509.github.io/inventory/setup.html" style="color:inherit">Set this up for another Post</a></p>
   </section>
 </main>
 
 <nav class="tabs" aria-label="Sections">
-  <button type="button" data-view="scan" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M10 8v8M13 8v8M17 8v8"/></svg>Scan</button>
+  <button type="button" data-view="scan" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M10 8v8M13 8v8M17 8v8"/></svg>Receive</button>
   <button type="button" data-view="items"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>Items</button>
   <button type="button" data-view="count"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8l2 2 4-4M8 15h8"/></svg>Count</button>
   <button type="button" data-view="order"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 4h2l2.4 11.2a1 1 0 0 0 1 .8h9.2a1 1 0 0 0 1-.8L20 8H6"/><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/></svg><span class="badge hidden" id="orderBadge"></span>Order</button>
@@ -465,7 +493,7 @@ const POUR_PRESETS = [
 const DEFAULT_SPOTS = ['Back bar', 'Beer cooler', 'Walk-in cooler', 'Freezer', 'Storage room', 'Kitchen'];
 const COUNT_DAYS = [3, 0];  // Wednesday and Sunday bar counts (0 = Sunday)
 const AREAS = { bar: 'Bar', kitchen: 'Kitchen', shared: 'Shared' };
-const LS = { cfg: 'vfwinv.cfg', items: 'vfwinv.items', queue: 'vfwinv.queue', recent: 'vfwinv.recent', count: 'vfwinv.count', demo: 'vfwinv.demo', spots: 'vfwinv.spots', categories: 'vfwinv.categories', photos: 'vfwinv.photos', vendors: 'vfwinv.vendors', prices: 'vfwinv.prices', orderBy: 'vfwinv.orderBy' };
+const LS = { cfg: 'vfwinv.cfg', items: 'vfwinv.items', queue: 'vfwinv.queue', recent: 'vfwinv.recent', count: 'vfwinv.count', demo: 'vfwinv.demo', spots: 'vfwinv.spots', categories: 'vfwinv.categories', photos: 'vfwinv.photos', vendors: 'vfwinv.vendors', prices: 'vfwinv.prices', orderBy: 'vfwinv.orderBy', lblAdj: 'vfwinv.lblAdj', rcv: 'vfwinv.rcv', rcvCheck: 'vfwinv.rcvCheck', orderPack: 'vfwinv.orderPack', countPacks: 'vfwinv.countPacks' };
 
 /* =========================================================== utils */
 const $ = (s, el = document) => el.querySelector(s);
@@ -572,6 +600,9 @@ const S = {
   orderBy: load(LS.orderBy, 'vendor'),
   queue: load(LS.queue, []),
   recent: load(LS.recent, []),
+  rcv: load(LS.rcv, null) || { lines: [], vendor: '' },  // the delivery being checked in: [{ id, pack, n, ordered? }]
+  orderPack: load(LS.orderPack, {}),                     // per item, the pack picked on the Order list
+  countPacks: load(LS.countPacks, {}),                   // per storage spot, the packs a count asks for
   count: load(LS.count, null),
   online: navigator.onLine,
   lastPull: 0,
@@ -597,11 +628,39 @@ const containerWords = it => it.kind === 'keg' ? 'kegs' : 'boxes';
 // Short line for kegs and syrup boxes: "2 full + open one 40% left".
 const containerLine = it => `${fmt(unopened(it))} full + open one ${Math.round(Math.min(openLeft(it), 1) * 100)}% left`;
 
+/* ---------------------------------------- packs */
+// An item is counted, sold and kept on hand in its single unit (a bottle, a can). Packs are bigger lots of it, each
+// with how many singles it holds and its own barcode: a 6-pack, a 4-pack, a case of 24. One may be the pack it's
+// usually bought in (none = bought one at a time, like liquor). On hand and par are always in singles; counts and
+// deliveries can be typed or scanned in any pack, and the app does the math.
+const packsOf = it => (it.packs && it.packs.length ? it.packs : num(it.caseQty) > 1 ? [{ name: 'Case', qty: num(it.caseQty), upc: it.caseUpc || '', buy: true }] : []);
+const unitWord = it => it.unit || 'unit';
+// The single unit first, then the packs, smallest to biggest. key: '1' for the single, else the pack's name.
+const packList = it => [{ key: '1', name: unitWord(it), qty: 1, upc: it.upc || '', single: true },
+  ...packsOf(it).slice().sort((a, b) => a.qty - b.qty).map(p => Object.assign({ key: p.name }, p))];
+const packByKey = (it, key) => packList(it).find(p => p.key === key) || packList(it)[0];
+const buyPack = it => packsOf(it).find(p => p.buy) || null;  // null: bought one at a time
+const plural = (n, w) => (n === 1 || /s$/i.test(w) ? w : w + 's');
+const packLabel = (p, n = 2) => (p.single ? plural(n, p.name) : plural(n, p.name.toLowerCase()) + (/\d/.test(p.name) && p.qty === parseFloat(p.name) ? '' : ` of ${fmt(p.qty)}`));
+// "153 bottles (6 cases + 9)": on hand in singles, and in the buy pack when there is one.
+function inPacks(it, n) {
+  n = num(n) || 0;
+  const p = buyPack(it) || packsOf(it).slice().sort((a, b) => b.qty - a.qty)[0];
+  const head = `${fmt(n)} ${plural(n, unitWord(it))}`;
+  if (!p || n < p.qty) return head;
+  const whole = Math.floor(n / p.qty), rest = round2(n - whole * p.qty);
+  return `${head} (${whole} ${plural(whole, p.name.toLowerCase())}${rest ? ' + ' + fmt(rest) : ''})`;
+}
+const PACK_PRESETS = [
+  ['6-pack + case of 24', [['6-pack', 6], ['Case', 24]]], ['4-pack + case of 24', [['4-pack', 4], ['Case', 24]]],
+  ['12-pack + case of 24', [['12-pack', 12], ['Case', 24]]], ['Case of 24', [['Case', 24]]], ['Case of 12', [['Case', 12]]]];
+// What a barcode is: an item's single, or one of its packs (mult = singles in it).
 function findByCode(code) {
   if (!code) return null;
   for (const it of S.items) {
-    if (it.upc && String(it.upc) === code) return { item: it, isCase: false, mult: 1 };
-    if (it.caseUpc && String(it.caseUpc) === code) return { item: it, isCase: true, mult: num(it.caseQty) || 1 };
+    if (it.upc && String(it.upc) === code) return { item: it, isCase: false, mult: 1, pack: packList(it)[0] };
+    const p = packList(it).find(x => !x.single && x.upc && String(x.upc) === code);
+    if (p) return { item: it, isCase: true, mult: p.qty, pack: p };
   }
   return null;
 }
@@ -626,17 +685,36 @@ function categories() {
 }
 
 /* =========================================================== backend */
+// Demo mode keeps packs the way Code.gs does: a list on each item, and Case UPC / Case Qty mirroring the pack it's
+// bought in (or the biggest).
+function demoPacks(it) {
+  if (typeof it.packs === 'string') { const l = parsePacksText(it.packs); it.packs = l.err ? [] : l; }
+  if (!Array.isArray(it.packs)) it.packs = packsOf(it).map(p => Object.assign({}, p));
+  const b = it.packs.find(p => p.buy) || it.packs.slice().sort((x, y) => y.qty - x.qty)[0];
+  it.caseUpc = b ? b.upc || '' : ''; it.caseQty = b ? b.qty : '';
+  return it;
+}
+const demoCodes = i => [i.upc, ...(i.packs || []).map(p => p.upc)].filter(Boolean);
+// The first barcode that's on this item twice, or on another item.
+function demoClash(db, after) {
+  const mine = demoCodes(after);
+  const twice = mine.find((c, n) => mine.indexOf(c) !== n);
+  if (twice) return `Barcode ${twice} is on this item twice`;
+  for (const c of mine) { const o = db.items.find(i => i.id !== after.id && demoCodes(i).includes(c)); if (o) return `Barcode ${c} is already on "${o.name}"`; }
+  return '';
+}
 const Demo = {
   db() { return load(LS.demo, null) || this.seed(); },
   seed() {
     const mk = (name, category, unit, onHand, par, pours, posNames, more) => Object.assign({ id: 'D' + uid(), name, category, unit, upc: '', caseUpc: '', caseQty: '', onHand, par, cost: '', posNames: posNames || name, poursPerUnit: pours, lastCounted: '', updated: new Date().toISOString(), updatedBy: 'demo', type: 'sold', area: 'bar', spot: 'Back bar', kind: '', openLeft: '' }, more);
     const db = { items: [
-      mk('Bud Light (bottle)', 'Bottle Beer', 'bottle', 30, 48, 1, 'Bud Light', { spot: 'Beer cooler' }),
-      mk('Coors Light (bottle)', 'Bottle Beer', 'bottle', 52, 48, 1, 'Coors Light', { spot: 'Beer cooler' }),
+      mk('Bud Light (bottle)', 'Bottle Beer', 'bottle', 30, 48, 1, 'Bud Light', { spot: 'Storage room | Beer cooler', packs: [{ name: '6-pack', qty: 6, upc: '', buy: false }, { name: 'Case', qty: 24, upc: '', buy: true }] }),
+      mk('Coors Light (bottle)', 'Bottle Beer', 'bottle', 52, 48, 1, 'Coors Light', { spot: 'Storage room | Beer cooler', packs: [{ name: '6-pack', qty: 6, upc: '', buy: false }, { name: 'Case', qty: 24, upc: '', buy: true }] }),
+      mk('Chardonnay mini 187 mL', 'Wine', 'bottle', 14, 24, 1, 'House Chardonnay', { spot: 'Storage room | Beer cooler', packs: [{ name: '4-pack', qty: 4, upc: '', buy: false }, { name: 'Case', qty: 24, upc: '', buy: true }] }),
       mk('Bud Light ½ keg', 'Draft Beer', 'keg', 1.6, 2, 124, 'Bud Light Draft', { kind: 'keg', openLeft: 0.6, spot: 'Walk-in cooler' }),
       mk('Crown Royal 750 mL', 'Liquor', 'bottle', 1, 4, 16, 'Crown Royal', { spot: 'Back bar | Storage room' }),
       mk('Captain Morgan 750 mL', 'Liquor', 'bottle', 2, 2, 16, 'Capt Morgan, Rum & Coke'),
-      mk('Coke (can)', 'N/A Bev', 'can', 20, 24, 1, 'Coke', { spot: 'Beer cooler' }),
+      mk('Coke (can)', 'N/A Bev', 'can', 20, 24, 1, 'Coke', { spot: 'Beer cooler', packs: [{ name: '12-pack', qty: 12, upc: '', buy: true }, { name: 'Case', qty: 24, upc: '', buy: false }] }),
       mk('Plastic cups (sleeve)', 'Supplies', 'sleeve', 6, 4, 1, '', { type: 'supply', area: 'shared', spot: 'Storage room', posNames: '' }),
       mk('Hamburger patties (case)', 'Kitchen', 'case', 2, 2, 40, '', { area: 'kitchen', spot: 'Freezer', posNames: '' })
     ], log: [] };
@@ -647,6 +725,8 @@ const Demo = {
     db.prices = {};
     const price = (name, list) => { const it = db.items.find(i => i.name === name); db.prices[it.id] = list.map(([vendor, p]) => ({ vendor, price: p })).sort((a, b) => a.price - b.price); it.cost = db.prices[it.id][0].price; };
     price('Bud Light (bottle)', [['Valley Beverage', 1.1]]);
+    price('Chardonnay mini 187 mL', [['Tri-County Distributing', 2.25]]);
+    db.items.forEach(demoPacks);
     price('Bud Light ½ keg', [['Valley Beverage', 120]]);
     price('Crown Royal 750 mL', [['Tri-County Distributing', 27.75], ['Valley Beverage', 29.5]]);
     price('Captain Morgan 750 mL', [['Valley Beverage', 18.5], ['Tri-County Distributing', 19.25]]);
@@ -686,11 +766,13 @@ const Demo = {
       case 'lookup': out = { ok: true, product: await lookupDirect(p.upc) }; break;
       case 'saveItem': {
         const src = p.item;
-        const clash = code => code && db.items.find(i => i.id !== src.id && (i.upc === code || i.caseUpc === code));
-        for (const c of [src.upc, src.caseUpc]) { const o = clash(c); if (o) return { ok: false, error: `Barcode ${c} is already on "${o.name}"` }; }
         let it = src.id && db.items.find(i => i.id === src.id);
-        if (it) { Object.assign(it, src); log('EDIT', it, '', ''); }
-        else { it = Object.assign({ category: '', unit: 'each', upc: '', caseUpc: '', caseQty: '', onHand: 0, par: '', cost: '', posNames: '', poursPerUnit: 1, lastCounted: '' }, src, { id: 'D' + uid() }); db.items.push(it); log('NEW ITEM', it, it.onHand, ''); }
+        const after = demoPacks(Object.assign({ packs: [] }, it ? JSON.parse(JSON.stringify(it)) : {}, src, { id: src.id || 'new' }));
+        const bad = demoClash(db, after);
+        if (bad) return { ok: false, error: bad };
+        delete after.prices;
+        if (it) { Object.assign(it, after); log('EDIT', it, '', ''); }
+        else { it = Object.assign({ category: '', unit: 'each', upc: '', onHand: 0, par: '', cost: '', posNames: '', poursPerUnit: 1, lastCounted: '' }, after, { id: 'D' + uid() }); db.items.push(it); log('NEW ITEM', it, it.onHand, ''); }
         it.updated = now; it.updatedBy = S.cfg.user;
         if (Array.isArray(src.prices)) {
           db.prices = db.prices || {};
@@ -702,7 +784,7 @@ const Demo = {
         out = { ok: true, item: it }; break;
       }
       case 'importItems': {
-        const made = p.items.map(src => Object.assign({ category: '', unit: 'each', upc: '', caseUpc: '', caseQty: '', onHand: 0, par: '', cost: '', posNames: '', poursPerUnit: 1, lastCounted: '' }, src, { id: 'D' + uid(), updated: now, updatedBy: S.cfg.user }));
+        const made = p.items.map(src => demoPacks(Object.assign({ category: '', unit: 'each', upc: '', caseUpc: '', caseQty: '', onHand: 0, par: '', cost: '', posNames: '', poursPerUnit: 1, lastCounted: '' }, src, { id: 'D' + uid(), updated: now, updatedBy: S.cfg.user })));
         db.items.push(...made); out = { ok: true, items: made, created: made.length }; break;
       }
       case 'bulkItems': {
@@ -710,16 +792,18 @@ const Demo = {
         db.prices = db.prices || {}; db.vendors = db.vendors || []; db.spots = db.spots || DEFAULT_SPOTS.slice();
         const errors = [], newVendors = [], newSpots = [];
         let updated = 0, created = 0, counted = 0;
-        const owner = code => db.items.find(i => i.upc === code || i.caseUpc === code);
         p.items.forEach(src => {
           let it = src.id ? db.items.find(i => i.id === src.id) : null;
           const label = src.name || (it && it.name) || 'New item';
           if (src.id && !it) return errors.push({ name: label, error: 'Not on the sheet any more (deleted?)' });
           if (!it && !src.name) return errors.push({ name: label, error: 'A new item needs a name' });
-          for (const c of [src.upc, src.caseUpc]) { const o = c && owner(c); if (o && o !== it) return errors.push({ name: label, error: `Barcode ${c} is already on "${o.name}"` }); }
           const f = Object.assign({}, src); ['id', 'count', 'prices', 'onHand', 'openLeft'].forEach(k => delete f[k]);
+          const bad = demoClash(db, demoPacks(Object.assign({ packs: [] }, it ? JSON.parse(JSON.stringify(it)) : {}, f, { id: it ? it.id : 'new' })));
+          if (bad) return errors.push({ name: label, error: bad });
+          if ('packs' in f) f.packs = demoPacks({ packs: f.packs }).packs;
           if (!it) { it = Object.assign({ category: '', unit: 'each', upc: '', caseUpc: '', caseQty: '', onHand: 0, par: '', cost: '', posNames: '', poursPerUnit: 1, lastCounted: '', type: 'sold', area: 'bar', spot: '', kind: '', openLeft: '' }, f, { id: 'D' + uid() }); if (num(src.count) !== null) it.onHand = num(src.count); db.items.push(it); created++; log('NEW ITEM', it, it.onHand, 'Bulk edit (Excel)'); }
           else { Object.assign(it, f); updated++; log('EDIT', it, '', 'Bulk edit (Excel)'); }
+          demoPacks(it);
           it.updated = now; it.updatedBy = S.cfg.user;
           if (Array.isArray(src.prices)) {
             const list = src.prices.slice(0, 4).map(x => {
@@ -980,7 +1064,7 @@ const Cam = {
       const cover = $('#cover-' + target);
       cover.classList.remove('hidden');
       cover.innerHTML = target === 'scan'
-        ? `<div><button class="btn" type="button" data-cam-start="scan">Start scanning</button><small>Point the camera at a bottle or case barcode</small></div>`
+        ? `<div><button class="btn" type="button" data-cam-start="scan">Start scanning</button><small>Each scan adds one to the list: a case barcode adds a case</small></div>`
         : `<div><button class="btn" type="button" data-cam-start="count">Start camera</button><small>Each scan counts +1</small></div>`;
       $('#wrap-' + target + ' [data-cam-stop]').classList.add('hidden');
     }
@@ -1022,68 +1106,174 @@ $('#manualForm').onsubmit = e => {
   if (code) onScanCode(code);
 };
 
-/* =========================================================== scan flow */
+/* =========================================================== receive an order */
+// Each line is an item, a pack (key: '1' for single ones, else the pack's name) and how many of that pack came in.
+// The list stays on the phone until Save, which logs every line as RECEIVED (offline too, through the queue).
+const saveRcv = () => save(LS.rcv, S.rcv);
+function rcvAdd(it, key, n = 1) {
+  if (!isMine(it)) { toast(`${it.name} is a ${AREAS[areaOf(it)].toLowerCase()} item`, { bad: true }); return null; }
+  let l = S.rcv.lines.find(x => x.id === it.id && x.pack === key);
+  if (!l) { l = { id: it.id, pack: key, n: 0 }; S.rcv.lines.push(l); }
+  l.n = round2(l.n + n);
+  saveRcv(); renderRcv();
+  return l;
+}
+function rcvFlash(text) {
+  const fl = $('#rcvFlash'); if (!fl) return;
+  fl.textContent = text; fl.classList.add('on'); clearTimeout(fl._t); fl._t = setTimeout(() => fl.classList.remove('on'), 1400);
+}
 function onScanCode(code) {
   const hit = findByCode(code);
-  beep(!!hit);
+  beep(!!hit && isMine(hit.item));
+  if (hit) {
+    const l = rcvAdd(hit.item, hit.pack.key);
+    if (l) rcvFlash(`+1 ${packLabel(hit.pack, 1)} · ${hit.item.name} → ${fmt(l.n)}`);
+    return;
+  }
   Cam.pause();
-  if (hit) itemSheet(hit.item, { isCase: hit.isCase, code, onClose: () => Cam.resume() });
-  else unknownSheet(code, { onClose: () => Cam.resume() });
+  unknownSheet(code, { onClose: () => Cam.resume(), receiving: true,
+    onLinked: (it, c) => { const h = findByCode(c); if (h) rcvAdd(h.item, h.pack.key); } });
+}
+const rcvUnits = l => { const it = itemById(l.id); return it ? round2(l.n * packByKey(it, l.pack).qty) : 0; };
+function renderRcv() {
+  const host = $('#rcvLines'); if (!host) return;
+  S.rcv.lines = S.rcv.lines.filter(l => itemById(l.id));
+  const lines = S.rcv.lines;
+  const checking = !!S.rcv.vendor;
+  renderRcvCheck();
+  if (!lines.length) { host.innerHTML = checking ? '<div class="empty">Nothing on this order. Scan what came in.</div>' : ''; return; }
+  const units = lines.reduce((s, l) => s + rcvUnits(l), 0);
+  const after = it => round2((num(it.onHand) || 0) + lines.filter(l => l.id === it.id).reduce((s, l) => s + rcvUnits(l), 0));
+  host.innerHTML = `<h3 class="row"><span class="grow">${checking ? 'Order from ' + esc(S.rcv.vendor) : 'This delivery'} · ${lines.length === 1 ? '1 line' : lines.length + ' lines'}</span><button class="btn small ghost" type="button" id="rcvClear">Clear</button></h3>` +
+    lines.map((l, i) => {
+      const it = itemById(l.id), p = packByKey(it, l.pack), u = rcvUnits(l);
+      const ordered = l.ordered !== undefined ? l.ordered : null;
+      const off = ordered !== null && round2(l.n) !== ordered;
+      return `<div class="rl ${off ? 'off' : ''}">
+        <div class="row"><b class="grow">${esc(it.name)}</b><button class="mini" type="button" data-rx="${i}" aria-label="Take ${esc(it.name)} off the list">×</button></div>
+        <div class="row" style="flex-wrap:wrap;gap:8px;margin-top:6px">
+          <div class="stepper"><button type="button" data-rs="${i}" data-d="-1" aria-label="One less">−</button><input type="number" inputmode="decimal" min="0" step="any" data-rn="${i}" value="${esc(l.n)}" aria-label="How many"><button type="button" data-rs="${i}" data-d="1" aria-label="One more">+</button></div>
+          <select class="t" data-rp="${i}" aria-label="Counted in">${packList(it).map(x => `<option value="${esc(x.key)}" ${x.key === l.pack ? 'selected' : ''}>${esc(packLabel(x))}</option>`).join('')}</select>
+        </div>
+        <div class="small-note" style="margin-top:4px">${p.single ? '' : `= ${fmt(u)} ${plural(u, unitWord(it))} · `}on hand after: ${fmt(after(it))}${ordered !== null ? ` · <b>ordered ${fmt(ordered)}</b>${off ? ' (doesn’t match)' : ' ✓'}` : checking ? ' · not on the order' : ''}</div>
+      </div>`;
+    }).join('') +
+    `<button class="btn good block" type="button" id="rcvSave" style="margin-top:12px">Save: add ${fmt(round2(units))} to on hand</button>`;
+  $$('[data-rx]', host).forEach(b => b.onclick = () => { S.rcv.lines.splice(Number(b.dataset.rx), 1); saveRcv(); renderRcv(); });
+  $$('[data-rs]', host).forEach(b => b.onclick = () => { const l = lines[b.dataset.rs]; l.n = Math.max(0, round2(l.n + Number(b.dataset.d))); saveRcv(); renderRcv(); });
+  $$('[data-rn]', host).forEach(x => x.onchange = () => { lines[x.dataset.rn].n = Math.max(0, num(x.value) || 0); saveRcv(); renderRcv(); });
+  $$('[data-rp]', host).forEach(x => x.onchange = () => {
+    const l = lines[x.dataset.rp], twin = lines.find(o => o !== l && o.id === l.id && o.pack === x.value);
+    if (twin) { twin.n = round2(twin.n + l.n); lines.splice(lines.indexOf(l), 1); } else l.pack = x.value;
+    saveRcv(); renderRcv();
+  });
+  $('#rcvClear', host).onclick = () => {
+    if (!confirm('Clear this list? Nothing on it has been saved.')) return;
+    S.rcv = { lines: [], vendor: '' }; saveRcv(); renderRcv();
+  };
+  $('#rcvSave', host).onclick = () => {
+    const todo = lines.filter(l => l.n > 0);
+    if (!todo.length) return toast('Every line is 0', { bad: true });
+    const missing = lines.filter(l => l.ordered && !l.n).map(l => itemById(l.id).name);
+    if (missing.length && !confirm(`Nothing came in for: ${missing.join(', ')}. Save the rest?`)) return;
+    let total = 0;
+    todo.forEach(l => {
+      const it = itemById(l.id), p = packByKey(it, l.pack), u = rcvUnits(l);
+      total += u;
+      const what = p.single ? `${fmt(l.n)} ${plural(l.n, p.name)}` : `${fmt(l.n)} ${packLabel(p, l.n)}`;
+      const vs = l.ordered !== undefined && round2(l.n) !== l.ordered ? ` (ordered ${fmt(l.ordered)})` : '';
+      stockChange(it, 'add', u, `Received ${what}${S.rcv.vendor ? ' from ' + S.rcv.vendor : ''}${vs}`);
+    });
+    S.rcv = { lines: [], vendor: '' }; saveRcv(); renderRcv();
+    toast(`Saved · ${todo.length === 1 ? '1 item' : todo.length + ' items'}, +${fmt(round2(total))} on hand`);
+  };
+}
+$('#rcvPick').onclick = async () => {
+  const it = await pickItemSheet('What came in?');
+  if (!it) return;
+  const b = buyPack(it);
+  rcvAdd(it, b ? b.name : '1');
+};
+$('#rcvNew').onclick = () => $('#addItemBtn').click();
+
+// Checking a delivery against the order (a try-out, turned on in More): fill the list from what the Order list says
+// to get from one vendor, in the packs it's ordered in, then fix the numbers to what actually came.
+const rcvCheckOn = () => isManager() && !!load(LS.rcvCheck, false);
+function renderRcvCheck() {
+  const host = $('#rcvCheck'); if (!host) return;
+  if (!rcvCheckOn()) { host.innerHTML = ''; return; }
+  if (S.rcv.vendor) { host.innerHTML = `<div class="banner info row"><span class="grow">Checking in the order from <b>${esc(S.rcv.vendor)}</b>. Red lines don't match what was ordered.</span></div>`; return; }
+  const groups = [...new Set(orderRows(true).map(vendorOf).filter(Boolean))];
+  host.innerHTML = groups.length ? `<div class="card" style="margin:0 0 10px"><b>Check in an order</b>
+      <div class="row" style="margin-top:8px"><select class="t grow" id="rcvVendor" aria-label="Vendor">${groups.map(g => `<option>${esc(g)}</option>`).join('')}</select><button class="btn small" type="button" id="rcvLoad">Load the order</button></div>
+      <div class="small-note">Puts what the Order list says to get from that vendor on the list below.</div></div>` : '';
+  const ld = $('#rcvLoad', host);
+  if (ld) ld.onclick = () => {
+    const v = $('#rcvVendor', host).value;
+    if (S.rcv.lines.length && !confirm('Replace the list below with this order?')) return;
+    S.rcv = { vendor: v, lines: orderRows(true).filter(i => vendorOf(i) === v && isMine(i)).map(i => ({ id: i.id, pack: orderPackOf(i).key, n: orderN(i), ordered: orderN(i) })) };
+    saveRcv(); renderRcv();
+  };
 }
 
+// An item's page: what's on hand (in packs too), taking some out with a reason, the keg or box changed, history
+// and edit. Deliveries are on the Receive tab and counts on the Count tab; "Receive some" puts it on that list.
 function itemSheet(item, ctx = {}) {
-  let caseMode = !!ctx.isCase;
-  const cq = num(item.caseQty);
   const sh = openSheet(item.name, '', { onClose: ctx.onClose });
+  let key = '1';
   const draw = () => {
     const live = itemById(item.id) || item;
     const box = isContainer(live);
     const word = containerWord(live);
     const words = containerWords(live);
     const mine = isMine(live);
+    const bp = buyPack(live);
+    const packs = packList(live);
+    if (!packs.some(p => p.key === key)) key = '1';
     sh.body.innerHTML = `
       <div class="small-note" style="margin:-6px 0 10px">${esc([live.category, live.unit].filter(Boolean).join(' · '))}${live.upc ? ' · UPC ' + esc(live.upc) : ''}${live.spot ? ' · ' + esc(spotWords(live)) : ''}${live.type === 'supply' ? ' · <span class="tag warn">SUPPLY</span>' : ''}</div>
-      ${pricesOf(live).length ? `<div class="small-note" style="margin:-4px 0 10px">Buy from: ${pricesOf(live).map((p, i) => `${i ? '' : '<b>'}${esc(p.vendor)}${p.price !== '' ? ' $' + Number(p.price).toFixed(2) : ''}${i ? '' : '</b>'}`).join(' · ')}</div>` : ''}
+      ${packs.length > 1 ? `<div class="small-note" style="margin:-4px 0 10px">Comes in ${packs.slice(1).map(p => `${esc(p.name.toLowerCase())} of ${fmt(p.qty)}${p.buy ? ' (bought by)' : ''}`).join(' · ')}</div>` : ''}
+      ${pricesOf(live).length ? `<div class="small-note" style="margin:-4px 0 10px">Buy from: ${pricesOf(live).map((p, i) => `${i ? '' : '<b>'}${esc(p.vendor)}${p.price !== '' ? ' $' + (Number(p.price) * (bp ? bp.qty : 1)).toFixed(2) + (bp ? '/' + esc(bp.name.toLowerCase()) : '') : ''}${i ? '' : '</b>'}`).join(' · ')}</div>` : ''}
       <div class="bignum">
         ${box
           ? `<div><small>Full ${words}</small><b>${fmt(unopened(live))}</b></div><div><small>Open ${word}</small><b>${Math.round(Math.min(openLeft(live), 1) * 100)}%</b> <span class="small-note">left</span></div>`
-          : `<div><small>On hand</small><b>${fmt(live.onHand)}</b> <span class="small-note">${esc(live.unit || '')}</span></div>`}
+          : `<div><small>On hand</small><b>${fmt(live.onHand)}</b> <span class="small-note">${esc(plural(num(live.onHand), unitWord(live)))}</span></div>`}
         <div><small>Par</small><b>${fmt(live.par)}</b></div>
-        ${box ? '' : `<div><small>To order</small><b style="color:${isLow(live) ? 'var(--accent)' : 'inherit'}">${fmt(toOrder(live))}</b></div>`}
+        ${box ? '' : `<div><small>To order</small><b style="color:${isLow(live) ? 'var(--accent)' : 'inherit'}">${isLow(live) ? fmt(orderN(live)) : '0'}</b>${isLow(live) ? ` <span class="small-note">${esc(packLabel(orderPackOf(live), orderN(live)).replace(/ of \d.*$/, ''))}</span>` : ''}</div>`}
       </div>
+      ${!box && inPacks(live, live.onHand).includes('(') ? `<div class="small-note" style="margin-top:6px">On hand: ${esc(inPacks(live, live.onHand))}</div>` : ''}
       ${mine ? `
       ${box ? `<button class="btn primary block" type="button" data-act="swap" style="margin-top:12px">${word === 'keg' ? 'Keg changed (tapped a full one)' : 'Box changed (hooked up a full one)'}</button>
         <p class="small-note">Tap this when the open ${word} runs out and you put on a new one. ${POST.skytab ? `SkyTab sales take the open ${word} down as drinks are rung up.` : ''}</p>` : ''}
-      ${cq ? `<div class="seg" style="margin-top:12px" role="group" aria-label="Counting in"><button type="button" data-u="1" class="${caseMode ? '' : 'on'}">Single ${esc(live.unit || 'units')}</button><button type="button" data-u="c" class="${caseMode ? 'on' : ''}">Cases of ${cq}</button></div>` : ''}
-      ${ctx.isCase && cq ? `<div class="banner info">You scanned the <b>case</b> barcode: 1 case = ${cq} ${esc(live.unit || 'units')}.</div>` : ''}
       <div class="field" style="margin-top:12px">
-        <label class="f" for="q">How many${caseMode && cq ? ' cases' : box ? ` full ${words}` : ''}?</label>
-        <div class="stepper"><button type="button" data-step="-1" aria-label="Less">−</button><input id="q" type="number" inputmode="decimal" min="0" step="any" value="1"><button type="button" data-step="1" aria-label="More">+</button></div>
+        <label class="f" for="q">How many${box ? ` full ${words}` : ''}?</label>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <div class="stepper" style="flex:1 1 150px"><button type="button" data-step="-1" aria-label="Less">−</button><input id="q" type="number" inputmode="decimal" min="0" step="any" value="1"><button type="button" data-step="1" aria-label="More">+</button></div>
+          ${!box && packs.length > 1 ? `<select class="t" id="qPack" style="flex:1 1 120px;width:auto" aria-label="Counted in">${packs.map(p => `<option value="${esc(p.key)}" ${p.key === key ? 'selected' : ''}>${esc(packLabel(p))}</option>`).join('')}</select>` : ''}
+        </div>
         <div class="small-note" id="qNote"></div>
       </div>
-      <div class="grid2" style="margin-top:12px">
-        <button class="btn good" type="button" data-act="add">＋ Received</button>
-        <button class="btn bad" type="button" data-act="remove">− Used / removed</button>
-      </div>
       <div class="field">
-        <label class="f" for="why">Reason (for removals, optional)</label>
+        <label class="f" for="why">Why is it coming out?</label>
         <select class="t" id="why"><option value="">${areaOf(live) === 'kitchen' ? 'Used in the kitchen' : 'Used at the bar'}</option><option>Spilled / broken</option><option>Comp / donated</option><option>Moved to canteen / kitchen</option><option>Expired</option><option>Other</option></select>
       </div>
-      <button class="btn block" type="button" data-act="set" style="margin-top:12px">${box ? `＝ Count: this many full ${words}` : '＝ Set on-hand to this number (count)'}</button>`
+      <div class="grid2" style="margin-top:12px">
+        <button class="btn bad" type="button" data-act="remove">− Take out</button>
+        <button class="btn" type="button" data-act="rcv">＋ Receive some</button>
+      </div>
+      <p class="small-note">Receive some puts it on the Receive list to save with the rest of the delivery. To fix the number on hand, count it on the Count tab${isManager() ? ' or change it in Edit item' : ''}.</p>`
       : `<div class="banner info" style="margin-top:12px">This is a ${esc(AREAS[areaOf(live)].toLowerCase())} item. ${areaOf(live) === 'kitchen' ? 'Kitchen people' : 'Bartenders'} and managers change it.</div>`}
       <div class="grid2" style="margin-top:12px">
         <button class="btn ghost small" type="button" data-act="hist">History</button>
         <button class="btn ghost small" type="button" data-act="edit">${isManager() ? 'Edit item' : 'Item details'}</button>
       </div>`;
     const q = $('#q', sh.body);
-    const mult = () => (caseMode && cq ? cq : 1);
-    const note = () => {
-      const v = num(q.value) || 0;
-      if (q) $('#qNote', sh.body).textContent = caseMode && cq ? `= ${fmt(v * cq)} ${live.unit || 'units'}` : '';
-    };
+    const mult = () => (box ? 1 : packByKey(live, key).qty);
+    const note = () => { if (q) $('#qNote', sh.body).textContent = mult() > 1 ? `= ${fmt(round2((num(q.value) || 0) * mult()))} ${plural(2, unitWord(live))}` : ''; };
     if (q) { note(); q.oninput = note; }
+    const qp = $('#qPack', sh.body);
+    if (qp) qp.onchange = () => { key = qp.value; note(); };
     $$('[data-step]', sh.body).forEach(b => b.onclick = () => { q.value = Math.max(0, (num(q.value) || 0) + Number(b.dataset.step)); note(); });
-    $$('[data-u]', sh.body).forEach(b => b.onclick = () => { caseMode = b.dataset.u === 'c'; draw(); });
     $$('[data-act]', sh.body).forEach(b => b.onclick = () => {
       const act = b.dataset.act;
       if (act === 'hist') return historySheet(live);
@@ -1096,14 +1286,19 @@ function itemSheet(item, ctx = {}) {
         return op;
       }
       const v = num(q.value);
-      if (v === null || v < 0) return toast('Enter a number', { bad: true });
+      if (v === null || v <= 0) return toast('Enter how many', { bad: true });
+      if (act === 'rcv') {
+        rcvAdd(live, box ? '1' : key, v);
+        sheets.slice().forEach(x => x.close());
+        showView('scan');
+        return toast(`${live.name} is on the Receive list. Save it there.`);
+      }
+      const p = packByKey(live, box ? '1' : key);
       const qty = round2(v * mult());
-      if ((act === 'add' || act === 'remove') && qty === 0) return toast('Quantity is 0', { bad: true });
-      const why = act === 'remove' ? $('#why', sh.body).value : (caseMode && cq ? `${fmt(v)} case(s)` : '');
-      const op = stockChange(live, act, qty, why);
+      const why = $('#why', sh.body).value;
+      const op = stockChange(live, 'remove', qty, [why, p.single ? '' : `${fmt(v)} ${packLabel(p, v)}`].filter(Boolean).join(' · '));
       sh.close();
-      const verb = act === 'add' ? `+${fmt(qty)}` : act === 'remove' ? `−${fmt(qty)}` : `= ${fmt(qty)}`;
-      toast(`${live.name}: ${verb} → ${fmt(live.onHand)} on hand`, { action: 'Undo', onAction: () => undoRecent(op.opId) });
+      toast(`${live.name}: −${fmt(qty)} → ${fmt(live.onHand)} on hand`, { action: 'Undo', onAction: () => undoRecent(op.opId) });
     });
   };
   draw();
@@ -1124,7 +1319,7 @@ function unknownSheet(code, ctx = {}) {
   const formHost = $('#newForm', sh.body);
   renderItemForm(formHost, { upc: code, onHand: 1, unit: 'bottle', poursPerUnit: 1 }, {
     isNew: true, scannedCode: code,
-    onSaved: it => { sh.close(); toast(`Added ${it.name} · ${fmt(it.onHand)} on hand`); }
+    onSaved: it => { sh.close(); toast(`Added ${it.name} · ${fmt(it.onHand)} on hand`); if (ctx.onCreated) ctx.onCreated(it); }
   });
   api('lookup', { upc: code }).then(r => {
     const note = $('#lookupNote', sh.body); if (!note) return;
@@ -1137,24 +1332,39 @@ function unknownSheet(code, ctx = {}) {
     } else note.textContent = 'No product name found online. Type the name below.';
   }).catch(() => { const n = $('#lookupNote', sh.body); if (n) n.textContent = 'Offline — type the name below.'; });
 
+  // Link: the barcode goes on the item's single, on one of its packs that has no barcode yet, or on a new pack.
   itemPicker($('#linkPicker', sh.body), it => {
-    const cq = num(it.caseQty);
+    const packs = packsOf(it).map(p => Object.assign({}, p));
     const s2 = openSheet('Add barcode to ' + it.name, `
       <p class="hint">What does barcode ${esc(code)} go on?</p>
       <div class="stack">
-        <button class="btn block" type="button" data-k="single" ${it.upc ? 'disabled' : ''}>A single ${esc(it.unit || 'unit')}${it.upc ? ' (already has one)' : ''}</button>
-        <div class="card stack" style="margin:0"><b>A case / pack</b>
-          <div class="row"><label class="f grow" for="cqn" style="margin:0">Units per case</label><input class="t" id="cqn" type="number" inputmode="numeric" style="width:100px" value="${cq || 24}"></div>
-          <button class="btn block" type="button" data-k="case" ${it.caseUpc ? 'disabled' : ''}>Use as case barcode${it.caseUpc ? ' (already has one)' : ''}</button>
-        </div>
+        <button class="btn block" type="button" data-k="1" ${it.upc ? 'disabled' : ''}>A single ${esc(unitWord(it))}${it.upc ? ' (already has one)' : ''}</button>
+        ${packs.map((p, i) => `<button class="btn block" type="button" data-k="p${i}" ${p.upc ? 'disabled' : ''}>The ${esc(p.name)} of ${fmt(p.qty)}${p.upc ? ' (already has one)' : ''}</button>`).join('')}
+        ${packs.length < 6 ? `<div class="card stack" style="margin:0"><b>A pack it doesn't have yet</b>
+          <div class="chips" style="flex-wrap:wrap">${[['6-pack', 6], ['4-pack', 4], ['12-pack', 12], ['Case', 24]].filter(([n]) => !packs.some(p => norm(p.name) === norm(n))).map(([n, q]) => `<button type="button" class="chip" data-np="${esc(n)}" data-nq="${q}">${esc(n)}${n === 'Case' ? ' of 24' : ''}</button>`).join('')}</div>
+          <div class="row"><input class="t grow" id="npn" placeholder="Name, like Case" aria-label="Pack name"><span class="small-note">of</span><input class="t" id="npq" type="number" inputmode="numeric" style="width:80px" placeholder="24" aria-label="How many in it"></div>
+          <button class="btn block" type="button" data-k="new">Use it for this pack</button></div>` : ''}
       </div>`);
+    $$('[data-np]', s2.body).forEach(b => b.onclick = () => { $('#npn', s2.body).value = b.dataset.np; $('#npq', s2.body).value = b.dataset.nq; });
     $$('[data-k]', s2.body).forEach(b => b.onclick = async () => {
-      const patch = b.dataset.k === 'single' ? { id: it.id, upc: code } : { id: it.id, caseUpc: code, caseQty: num($('#cqn', s2.body).value) || 24 };
+      const k = b.dataset.k;
+      let patch;
+      if (k === '1') patch = { id: it.id, upc: code };
+      else if (k === 'new') {
+        const name = $('#npn', s2.body).value.trim(), qty = num($('#npq', s2.body).value);
+        if (!name || !qty || qty < 1) return toast('Give the pack a name and how many are in it', { bad: true });
+        if (packs.some(p => norm(p.name) === norm(name))) return toast(`It already has a ${name}; pick it above`, { bad: true });
+        patch = { id: it.id, packs: packs.concat([{ name, qty, upc: code, buy: !packs.length && /case/i.test(name) }]) };
+      } else {
+        packs[Number(k.slice(1))].upc = code;
+        patch = { id: it.id, packs };
+      }
       b.disabled = true;
       const r = await saveItemRemote(patch);
       if (!r) { b.disabled = false; return; }
       s2.close(); sh.close();
       toast('Barcode added to ' + r.name);
+      if (ctx.onLinked) ctx.onLinked(r, code);
     });
   }, { preferNoUpc: true });
 }
@@ -1185,11 +1395,13 @@ function renderItemForm(host, it, opts) {
           : `<input class="t" name="category" value="${esc(it.category || '')}" readonly>`}</div>
         <div><label class="f">Counted as</label><input class="t" name="unit" list="unitList" value="${esc(it.unit || '')}" ${mgr ? '' : 'readonly'}><datalist id="unitList">${UNITS.map(c => `<option value="${esc(c)}">`).join('')}</datalist></div>
       </div>
-      ${opts.isNew ? `
-        <div class="field" style="margin-top:12px"><label class="f">The barcode I scanned is on</label>
-          <div class="seg"><button type="button" class="on" data-scan="single">A single unit</button><button type="button" data-scan="case">A case / pack</button></div>
-          <div id="caseRow" class="hidden row" style="margin-top:8px"><label class="f grow" style="margin:0">Units per case</label><input class="t" name="caseQtyNew" type="number" inputmode="numeric" style="width:100px" value="24"></div>
-        </div>` : ''}
+      <div class="field" style="margin-top:12px"><label class="f">Barcode on a single one</label><input class="t" name="upc" inputmode="numeric" value="${esc(it.upc || '')}" ${mgr ? '' : 'readonly'}></div>
+      <div class="field"><label class="f">Packs it comes in</label>
+        <div id="pkRows"></div>
+        ${mgr ? `<div class="chips" style="flex-wrap:wrap;margin-top:6px">${PACK_PRESETS.map(([l], i) => `<button type="button" class="chip" data-pk-preset="${i}">${esc(l)}</button>`).join('')}<button type="button" class="chip" data-pk-add>+ Other pack</button></div>` : ''}
+        <div class="row" style="margin-top:8px"><label class="f grow" style="margin:0">Usually bought by the</label><select class="t" name="buyPack" style="width:auto;max-width:55%" ${mgr ? '' : 'disabled'}></select></div>
+        <div class="small-note">Scanning a pack's barcode adds the whole pack. On hand and par are in single ones; counts and deliveries can be typed in any pack, and the app does the math.</div></div>
+      ${opts.isNew && opts.scannedCode ? `<div class="field"><label class="f">The barcode I scanned (${esc(opts.scannedCode)}) is on</label><select class="t" name="scanOn"></select></div>` : ''}
       ${isManager() ? `
       <div class="grid2" style="margin-top:12px">
         <div><label class="f">Type</label><select class="t" name="type"><option value="sold" ${it.type === 'supply' ? '' : 'selected'}>Sold</option><option value="supply" ${it.type === 'supply' ? 'selected' : ''}>Supply (count only)</option></select></div>
@@ -1204,7 +1416,8 @@ function renderItemForm(host, it, opts) {
         <div class="chips" id="spotPick" style="flex-wrap:wrap;padding-bottom:4px">${[...S.spots, ...spotsOf(it).filter(s => !S.spots.some(x => norm(x) === norm(s)))].map(s => `<button type="button" class="chip ${hasSpot(it, s) ? 'on' : ''}" data-spot-pick="${esc(s)}" aria-pressed="${hasSpot(it, s)}">${esc(s)}</button>`).join('')}</div>
         <div class="small-note">Tap every spot it's kept in, like the bar and the storage room. On hand is the total of all of them, and a count asks for each spot.</div></div>
       <div class="grid2" style="margin-top:12px" id="ohPlain">
-        <div><label class="f">${opts.isNew ? 'How many are here now?' : 'On hand'}</label><input class="t" name="onHand" type="number" inputmode="decimal" step="any" value="${esc(it.onHand ?? '')}" ${isManager() || opts.isNew ? '' : 'readonly'}><div class="small-note" id="ohNote">${opts.isNew ? 'single units' : ''}</div></div>
+        <div><label class="f">${opts.isNew ? 'How many are here now?' : 'On hand (single ones)'}</label><input class="t" name="onHand" type="number" inputmode="decimal" step="any" value="${esc(it.onHand ?? '')}" ${isManager() || opts.isNew ? '' : 'readonly'}>
+          ${opts.isNew ? '<select class="t" name="ohPack" style="margin-top:6px" aria-label="Counted in"></select>' : ''}<div class="small-note" id="ohNote"></div></div>
         <div><label class="f">Par (keep on hand)</label><input class="t" name="par" type="number" inputmode="decimal" step="any" value="${esc(it.par ?? '')}" ${mgr ? '' : 'readonly'}></div>
       </div>
       ${isManager() ? `
@@ -1212,18 +1425,12 @@ function renderItemForm(host, it, opts) {
         <div><label class="f">Full ones (unopened)</label><input class="t" name="full" type="number" inputmode="decimal" step="any" value="${esc(isContainer(it) ? unopened(it) : '')}"></div>
         <div><label class="f">Open one, % left</label><input class="t" name="pct" type="number" inputmode="numeric" min="0" max="100" value="${isContainer(it) ? Math.round(Math.min(openLeft(it), 1) * 100) : 100}"></div>
       </div>` : ''}
-      ${opts.isNew ? '' : `
-      <div class="grid2" style="margin-top:12px">
-        <div><label class="f">Single UPC</label><input class="t" name="upc" inputmode="numeric" value="${esc(it.upc || '')}" ${mgr ? '' : 'readonly'}></div>
-        <div><label class="f">Case UPC</label><input class="t" name="caseUpc" inputmode="numeric" value="${esc(it.caseUpc || '')}" ${mgr ? '' : 'readonly'}></div>
-      </div>
-      <div class="field" style="margin-top:12px"><label class="f">Units per case</label><input class="t" name="caseQty" type="number" inputmode="numeric" value="${esc(it.caseQty ?? '')}" ${mgr ? '' : 'readonly'}></div>`}
       ${isManager() ? `
       <details style="margin-top:12px" ${opts.isNew ? '' : 'open'}><summary>Where we buy it &amp; cost</summary>
-        <div class="field"><label class="f">Vendors and their price per ${esc(it.unit || 'unit')} (up to 4)</label>
+        <div class="field"><label class="f" id="vpHead">Vendors and their price (up to 4)</label>
           <div id="vpRows"></div>
           ${S.vendors.length ? '<button class="btn small" type="button" id="vpAdd" style="margin-top:6px">+ Vendor price</button>' : '<div class="small-note">Add vendors first under More → Vendors.</div>'}
-          <div class="small-note">The order list puts this item under the cheapest vendor, and Cost follows the lowest price.</div></div>
+          <div class="small-note">Type the price on the invoice, for the pack it's bought in. The order list puts this item under the cheapest vendor, and Cost (per single one) follows the lowest price.</div></div>
         <div class="field"><label class="f">Cost per ${esc(it.unit || 'unit')} ($)</label><input class="t" name="cost" type="number" inputmode="decimal" step="0.01" value="${esc(it.cost ?? '')}"></div>
         ${POST.skytab ? `<div class="field"><label class="f">SkyTab item names that use this</label><textarea class="t" name="posNames" placeholder="Crown Royal, Crown & Coke">${esc(it.posNames || '')}</textarea>
           <div class="small-note">Comma-separated, spelled exactly like the SkyTab sales report. Leave blank to match the item name.</div></div>
@@ -1236,14 +1443,48 @@ function renderItemForm(host, it, opts) {
       ${!opts.isNew && isManager() ? '<button class="btn ghost block" type="button" data-del style="margin-top:8px;color:var(--accent)">Delete item</button>' : ''}
     </form>`;
   const f = $('form', host);
-  let scanAsCase = false;
-  $$('[data-scan]', f).forEach(b => b.onclick = () => {
-    scanAsCase = b.dataset.scan === 'case';
-    $$('[data-scan]', f).forEach(x => x.classList.toggle('on', x === b));
-    $('#caseRow', f).classList.toggle('hidden', !scanAsCase);
-    $('#ohNote', f).textContent = scanAsCase ? 'cases (converted to single units)' : 'single units';
-    if (scanAsCase && f.unit.value === 'bottle') f.unit.value = 'bottle';
+  // Packs: a row each (name, how many singles, barcode), and which one it's bought in.
+  const pk = packsOf(it).map(p => ({ name: p.name, qty: p.qty, upc: p.upc || '' }));
+  let buy = (buyPack(it) || {}).name || '';
+  if (opts.isNew && opts.scanPack) { pk.push({ name: opts.scanPack.name, qty: opts.scanPack.qty, upc: '' }); }
+  const unitNow = () => (f.unit.value || 'unit').trim();
+  const drawPk = () => {
+    $('#pkRows', f).innerHTML = pk.length ? pk.map((p, i) => `<div class="row" style="flex-wrap:wrap;gap:6px;margin-top:6px;padding:8px;border:1px solid var(--line);border-radius:10px">
+        <input class="t" data-pn="${i}" value="${esc(p.name)}" placeholder="6-pack" aria-label="Pack name" style="flex:1 1 90px;min-width:0" ${mgr ? '' : 'readonly'}>
+        <span class="small-note">of</span><input class="t" data-pq="${i}" type="number" inputmode="numeric" min="1" step="any" value="${esc(p.qty)}" aria-label="How many in it" style="width:70px" ${mgr ? '' : 'readonly'}>
+        ${mgr ? `<button class="mini" type="button" data-px="${i}" aria-label="Remove pack">×</button>` : ''}
+        <input class="t" data-pu="${i}" inputmode="numeric" value="${esc(p.upc)}" placeholder="Barcode on the ${esc(p.name || 'pack')} (optional)" aria-label="Pack barcode" style="flex:1 1 100%" ${mgr ? '' : 'readonly'}></div>`).join('')
+      : '<div class="small-note">None: only single ones. Tap a pack below if it comes in 6-packs, cases and so on.</div>';
+    $$('[data-pn]', f).forEach(x => x.oninput = () => { const old = pk[x.dataset.pn].name; pk[x.dataset.pn].name = x.value; if (buy === old) buy = x.value; syncSel(); });
+    $$('[data-pq]', f).forEach(x => x.oninput = () => { pk[x.dataset.pq].qty = num(x.value) || ''; syncSel(); });
+    $$('[data-pu]', f).forEach(x => x.oninput = () => { pk[x.dataset.pu].upc = x.value; });
+    $$('[data-px]', f).forEach(b => b.onclick = () => { const [r] = pk.splice(Number(b.dataset.px), 1); if (r.name === buy) buy = ''; drawPk(); });
+    syncSel();
+  };
+  // The pack pickers (bought by, scanned barcode is on, how many here now) follow the rows.
+  const syncSel = () => {
+    const named = pk.filter(p => p.name.trim() && num(p.qty));
+    const opt = (v, l, on) => `<option value="${esc(v)}" ${on ? 'selected' : ''}>${esc(l)}</option>`;
+    if (f.buyPack) f.buyPack.innerHTML = opt('', `${unitNow()} (one at a time)`, !buy) + named.map(p => opt(p.name, `${p.name} of ${fmt(p.qty)}`, p.name === buy)).join('');
+    if (f.scanOn) { const was = f.scanOn.value || (opts.scanPack ? opts.scanPack.name : ''); f.scanOn.innerHTML = opt('', `A single ${unitNow()}`, !was) + named.map(p => opt(p.name, `The ${p.name} (${fmt(p.qty)})`, p.name === was)).join(''); }
+    if (f.ohPack) { const was = f.ohPack.value; f.ohPack.innerHTML = opt('1', `single ${plural(2, unitNow())}`, !was || was === '1') + named.map(p => opt(p.name, `${plural(2, p.name.toLowerCase())} of ${fmt(p.qty)}`, p.name === was)).join(''); }
+    if (typeof drawVp === 'function' && vp) drawVp();
+  };
+  $$('[data-pk-preset]', f).forEach(b => b.onclick = () => {
+    const set = PACK_PRESETS[b.dataset.pkPreset][1];
+    const keep = pk.slice();
+    pk.length = 0;
+    set.forEach(([name, qty]) => { const had = keep.find(p => num(p.qty) === qty); pk.push({ name, qty, upc: had ? had.upc : '' }); });
+    buy = 'Case';
+    drawPk();
   });
+  const addBtn = $('[data-pk-add]', f);
+  if (addBtn) addBtn.onclick = () => { pk.push({ name: '', qty: '', upc: '' }); drawPk(); const n = $(`[data-pn="${pk.length - 1}"]`, f); if (n) n.focus(); };
+  if (f.buyPack) f.buyPack.onchange = () => { buy = f.buyPack.value; if (vp) drawVp(); };
+  f.unit.addEventListener('change', syncSel);
+  // New item counted in packs: show what that comes to.
+  const ohSum = () => { if (!f.ohPack) return; const p = pk.find(x => x.name === f.ohPack.value); $('#ohNote', f).textContent = p && num(p.qty) ? `= ${fmt(round2((num(f.onHand.value) || 0) * num(p.qty)))} ${plural(2, unitNow())}` : ''; };
+  if (f.ohPack) { f.ohPack.addEventListener('change', ohSum); f.onHand.addEventListener('input', ohSum); }
   // Kegs and syrup boxes: on hand is typed as full ones plus how much is left in the open one.
   const kindChanged = () => {
     const box = !!(f.kind && f.kind.value);
@@ -1260,20 +1501,24 @@ function renderItemForm(host, it, opts) {
     f.category.value = nw ? '' : f.catPick.value;
     if (nw) f.category.focus();
   };
-  // Vendor prices: a vendor and its price per unit on each row.
-  const vp = $('#vpRows', f) ? pricesOf(it).map(p => ({ vendor: p.vendor, price: p.price })) : null;
-  const drawVp = () => {
-    const names = S.vendors.map(v => v.name);
+  // Vendor prices: a vendor and its price on each row, typed per buy pack (what the invoice says) and kept per single.
+  var vp = $('#vpRows', f) ? pricesOf(it).map(p => ({ vendor: p.vendor, price: p.price })) : null;
+  const buyQty = () => { const p = pk.find(x => x.name === buy); return p && num(p.qty) ? num(p.qty) : 1; };
+  function drawVp() {
+    const names = S.vendors.map(v => v.name), q = buyQty();
+    const p0 = pk.find(x => x.name === buy);
+    $('#vpHead', f).textContent = `Vendors and their price per ${p0 && num(p0.qty) ? `${p0.name.toLowerCase()} of ${fmt(p0.qty)}` : unitNow()} (up to 4)`;
     $('#vpRows', f).innerHTML = vp.map((p, i) => `<div class="row" style="margin-top:6px">
       <select class="t grow" data-vv="${i}" aria-label="Vendor">${[...new Set([...names, p.vendor].filter(Boolean))].map(n => `<option ${n === p.vendor ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
-      <input class="t" data-vp="${i}" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(p.price)}" placeholder="$" aria-label="Price at ${esc(p.vendor)}" style="width:96px">
+      <input class="t" data-vp="${i}" type="number" inputmode="decimal" step="0.01" min="0" value="${p.price === '' ? '' : round2(p.price * q)}" placeholder="$" aria-label="Price at ${esc(p.vendor)}" style="width:96px">
       <button class="mini" type="button" data-vx="${i}" aria-label="Remove">×</button></div>`).join('');
     $$('[data-vv]', f).forEach(s => s.onchange = () => { vp[s.dataset.vv].vendor = s.value; });
-    $$('[data-vp]', f).forEach(s => s.oninput = () => { vp[s.dataset.vp].price = s.value === '' ? '' : Number(s.value); });
+    $$('[data-vp]', f).forEach(s => s.oninput = () => { vp[s.dataset.vp].price = s.value === '' ? '' : Number(s.value) / buyQty(); });
     $$('[data-vx]', f).forEach(b => b.onclick = () => { vp.splice(Number(b.dataset.vx), 1); drawVp(); });
     const add = $('#vpAdd', f);
     if (add) add.disabled = vp.length >= 4;
-  };
+  }
+  drawPk();
   if (vp) {
     drawVp();
     const add = $('#vpAdd', f);
@@ -1305,18 +1550,24 @@ function renderItemForm(host, it, opts) {
     const v = n => f[n] ? f[n].value : undefined;
     const patch = { name: v('name').trim(), category: v('category').trim(), unit: v('unit').trim(), par: v('par') };
     if (!patch.name) { btn.disabled = false; return toast('Give it a name', { bad: true }); }
+    const packs = pk.filter(p => p.name.trim() && num(p.qty)).map(p => ({ name: p.name.trim(), qty: num(p.qty), upc: normCode(p.upc), buy: p.name === buy }));
+    const names = packs.map(p => norm(p.name));
+    if (names.some((n, i) => names.indexOf(n) !== i)) { btn.disabled = false; return toast('Two packs have the same name', { bad: true }); }
+    patch.upc = normCode(v('upc'));
     if (opts.isNew) {
-      const cq = num(v('caseQtyNew')) || 24;
+      // The scanned barcode goes on the single or on the pack picked, and "how many here" can be in packs.
+      if (opts.scannedCode && f.scanOn && f.scanOn.value) {
+        const p = packs.find(x => x.name === f.scanOn.value);
+        if (p) { p.upc = opts.scannedCode; if (patch.upc === opts.scannedCode) patch.upc = ''; }
+      }
       const n = num(v('onHand')) || 0;
-      if (scanAsCase) { patch.caseUpc = opts.scannedCode || ''; patch.caseQty = cq; patch.onHand = round2(n * cq); }
-      else { patch.upc = opts.scannedCode || ''; patch.onHand = n; }
-      if (!opts.scannedCode) { delete patch.upc; delete patch.caseUpc; }
+      const inP = packs.find(x => f.ohPack && x.name === f.ohPack.value);
+      patch.onHand = round2(n * (inP ? inP.qty : 1));
     } else {
       patch.id = it.id;
-      ['upc', 'caseUpc'].forEach(k => { patch[k] = normCode(v(k)); });
-      patch.caseQty = v('caseQty');
       if (isManager()) patch.onHand = v('onHand');
     }
+    if (mgr) patch.packs = packs;
     patch.spot = $$('[data-spot-pick].on', f).map(b => b.dataset.spotPick).join(SPOT_SEP);
     if (isManager()) {
       patch.cost = v('cost');
@@ -1418,7 +1669,7 @@ function renderItems() {
   const tags = i => [isManager() && areaOf(i) !== 'bar' ? AREAS[areaOf(i)] : '', i.type === 'supply' ? 'supply' : ''].filter(Boolean).map(t => ' · ' + esc(t)).join('');
   $('#itemList').innerHTML = rows.length ? rows.map(i => `
     <button class="li" type="button" data-id="${esc(i.id)}">
-      <div class="grow"><div class="nm">${esc(i.name)}</div><div class="sub">${esc(i.category || 'Uncategorized')}${tags(i)}${isContainer(i) ? ' · ' + esc(containerLine(i)) : i.upc || i.caseUpc ? '' : ' · no barcode'}</div></div>
+      <div class="grow"><div class="nm">${esc(i.name)}</div><div class="sub">${esc(i.category || 'Uncategorized')}${tags(i)}${isContainer(i) ? ' · ' + esc(containerLine(i)) : i.upc || packsOf(i).some(p => p.upc) ? '' : ' · no barcode'}</div></div>
       ${isLow(i) ? '<span class="tag low">LOW</span>' : ''}
       <div class="qty"><b>${fmt(i.onHand)}</b><span> / ${fmt(i.par)}</span></div>
     </button>`).join('')
@@ -1497,104 +1748,193 @@ document.addEventListener('click', e => {
   if (b) startCount(b.dataset.startCount, b.dataset.spot);
 });
 
+// Counting in packs: each item gets a box per pack (cases, 6-packs, single bottles) in each spot it's kept, and the
+// app adds them up. S.count.e[id][spot][key] is what was typed: key '1' is single ones (full bottles for liquor,
+// full kegs), 'open' is open bottles of liquor (estimated, see openEst), else a pack's name. Each spot's sum goes
+// through setCounted, so the total over several spots and the save work as before.
+const STORAGE_RX = /storage|walk|back ?room|stock|cellar|basement/i;
+const isPour = it => !isContainer(it) && (num(it.poursPerUnit) || 1) > 1;
+// Open bottles: what's left, estimated from sales. Sales take a shot at a time off on hand, so the part after the
+// point is the best guess for one open bottle; each more open one counts as half.
+function openEst(it, n) {
+  if (!n) return 0;
+  const frac = round2((num(it.onHand) || 0) % 1);
+  return round2((frac > 0 ? frac : 0.5) + (n - 1) * 0.5);
+}
+const spotKey = (it, spot) => (multiSpot(it) ? spot || '' : '');
+const entOf = (id, sk) => ((S.count.e || {})[id] || {})[sk || ''] || null;
+const boxQty = (it, k) => (k === '1' || k === 'open' ? 1 : packByKey(it, k).qty);
+const spotSum = (it, box) => round2(Object.entries(box).reduce((s, [k, n]) => s + (k === 'open' ? openEst(it, n) : n * boxQty(it, k)), 0));
+const boxWord = (it, k, n = 2) => k === 'open' ? `open ${plural(n, unitWord(it))}` : k === '1' ? (isContainer(it) ? `full ${n === 1 ? containerWord(it) : containerWords(it)}` : isPour(it) ? `full ${plural(n, unitWord(it))}` : plural(n, unitWord(it))) : packLabel(packByKey(it, k), n).replace(/ of \d.*$/, '');
+// The boxes for an item in a spot. Storage spots ask for the pack it's bought in (cases) plus single ones; other
+// spots (the bar) for the smaller packs (6-packs) plus single ones. A pack typed in a spot before shows there
+// again, and ＋ shows them all. Kegs count full ones; liquor full and open bottles.
+function countBoxes(it, spot, all) {
+  if (isContainer(it)) return ['1'];
+  const packs = packList(it).filter(p => !p.single).reverse();  // biggest first
+  const where = norm(spot || spotsOf(it)[0] || '');
+  const typed = entOf(it.id, spotKey(it, spot)) || {};
+  const big = buyPack(it) || packs[0];
+  const keep = S.countPacks[where] || [];
+  const shown = packs.filter(p => all || p.key in typed || keep.includes(norm(p.name)) ||
+    (STORAGE_RX.test(where) ? big && p.name === big.name : !(big && p.name === big.name)));
+  return [...shown.map(p => p.key), '1', ...(isPour(it) ? ['open'] : [])];
+}
+function setEntry(id, spot, key, v) {
+  const it = itemById(id); if (!it) return;
+  const sk = spotKey(it, spot), c = S.count;
+  c.e = c.e || {};
+  const m = c.e[id] = c.e[id] || {};
+  const box = m[sk] = m[sk] || {};
+  if (v === null) delete box[key]; else box[key] = Math.max(0, round2(v));
+  const any = Object.keys(box).length;
+  if (!any) delete m[sk];
+  if (!Object.keys(m).length) delete c.e[id];
+  // A pack typed in a spot is asked for there from now on (on this phone).
+  if (v !== null && key !== '1' && key !== 'open') {
+    const w = norm(spot || spotsOf(it)[0] || ''), nm = norm(packByKey(it, key).name), l = S.countPacks[w] = S.countPacks[w] || [];
+    if (!l.includes(nm)) { l.push(nm); save(LS.countPacks, S.countPacks); }
+  }
+  setCounted(id, sk, any ? spotSum(it, box) : null);
+}
+// "3 cases + 4 bottles", biggest pack first.
+const boxText = (it, spot, box) => countBoxes(it, spot, true).filter(k => box[k]).map(k => `${fmt(box[k])} ${boxWord(it, k, box[k])}`).join(' + ') || '0';
+// "Storage room 3 cases + 4 bottles; Beer cooler 2 6-packs" for the Log.
+function countNote(it) {
+  const m = (S.count.e || {})[it.id] || {};
+  const bits = Object.entries(m).map(([s, box]) => (s ? s + ' ' : '') + boxText(it, s, box));
+  return 'Count' + (bits.length ? ': ' + bits.join('; ') : '');
+}
+// The old way a count was kept on the phone (one number per item and spot), for a count started before v1.9.
+function countUpgrade(c) {
+  if (c.e) return;
+  c.e = {};
+  Object.keys(c.tally).forEach(id => {
+    const it = itemById(id), p = (c.parts || {})[id];
+    c.e[id] = {};
+    if (it && multiSpot(it) && p) Object.entries(p).forEach(([s, n]) => { c.e[id][s] = { 1: n }; });
+    else c.e[id][''] = { 1: c.tally[id] };
+  });
+  save(LS.count, c);
+}
+
 function renderCount() {
   const c = S.count;
   renderDue();
   $('#countIdle').classList.toggle('hidden', !!c);
   $('#countLive').classList.toggle('hidden', !c);
   if (!c) {
-    const opts = S.role === 'kitchen' ? [['kitchen', 'Start kitchen count']]
-      : isManager() ? [['bar', 'Start bar count'], ['kitchen', 'Start kitchen count'], ['all', 'Count everything']]
-        : [['bar', 'Start bar count']];
-    // Or one storage spot at a time: the spots that hold this person's items, in walking order.
+    const opts = S.role === 'kitchen' ? [['kitchen', 'Count the whole kitchen']]
+      : isManager() ? [['bar', 'Count the whole bar'], ['kitchen', 'Count the whole kitchen'], ['all', 'Count everything']]
+        : [['bar', 'Count the whole bar']];
+    // One storage spot at a time: the spots that hold this person's items, in walking order.
     const area = S.role === 'kitchen' ? 'kitchen' : isManager() ? 'all' : 'bar';
     const mine = S.items.filter(it => COUNT_AREAS[area].includes(areaOf(it)) && isMine(it));
     const spots = [...S.spots, ...new Set(mine.flatMap(spotsOf).filter(s => !S.spots.includes(s)))]
       .map(s => [s, mine.filter(i => hasSpot(i, s)).length]).filter(([, n]) => n);
-    $('#countStart').innerHTML = opts.map(([a, l], i) => `<button class="btn ${i ? '' : 'primary'} block" type="button" data-start-count="${a}">${l}</button>`).join('') +
-      (spots.length ? `<h3 style="margin-top:8px">Or count one storage spot</h3><div class="list">${spots.map(([s, n]) => `
+    $('#countStart').innerHTML = (spots.length ? `<h3 style="margin-top:0">Pick a spot to count</h3><div class="list">${spots.map(([s, n]) => `
         <button class="li" type="button" data-start-count="${area}" data-spot="${esc(s)}">
           ${S.photos[s] ? `<img class="spot-mini" data-photo="${esc(s)}" alt="">` : ''}
-          <div class="grow"><div class="nm">${esc(s)}</div><div class="sub">${nItems(n)}</div></div><span aria-hidden="true">›</span></button>`).join('')}</div>` : '');
+          <div class="grow"><div class="nm">${esc(s)}</div><div class="sub">${nItems(n)}</div></div><span aria-hidden="true">›</span></button>`).join('')}</div>
+        <h3>Or walk every spot</h3>` : '') +
+      opts.map(([a, l], i) => `<button class="btn ${i || spots.length ? '' : 'primary'} block" type="button" data-start-count="${a}">${l}</button>`).join('');
     fillPhotos($('#countStart'));
     return;
   }
-  const ids = Object.keys(c.tally);
-  const label = c.spot ? `${c.spot} count` : { bar: 'Bar count', kitchen: 'Kitchen count', all: 'Full count' }[countArea()];
-  $('#countHead').textContent = `${label} · ${ids.length} counted`;
-  const row = (it, spot, val, sub) => `<div class="li"><div class="grow"><div class="nm">${esc(it.name)}</div><div class="sub">${esc(sub)}</div></div>
-      <button class="mini" type="button" data-dec="${esc(it.id)}" data-spot="${esc(spot)}" aria-label="Minus one">−</button>
-      <input class="count-n" type="number" inputmode="decimal" step="any" data-set="${esc(it.id)}" data-spot="${esc(spot)}" value="${esc(val)}" aria-label="Count for ${esc(it.name)}${spot ? ' in ' + esc(spot) : ''}" style="width:70px">
-      <button class="mini" type="button" data-inc="${esc(it.id)}" data-spot="${esc(spot)}" aria-label="Plus one">+</button></div>`;
-  $('#countList').innerHTML = ids.length ? ids.slice().reverse().map(id => {
-    const it = itemById(id); if (!it) return '';
-    const p = (c.parts || {})[id];
-    if (!multiSpot(it) || !p) return row(it, '', c.tally[id], countSub(it));
-    return spotsOf(it).filter(s => s in p).map(s => row(it, s, p[s], `in ${s} · total ${fmt(c.tally[id])} · ${countSub(it)}`)).join('');
-  }).join('') : '<div class="empty">Nothing counted yet. Scan, or type numbers in the list below.</div>';
-
-  // Everything not counted yet, by where it's kept, in the order of the storage spots. An item kept in several
-  // spots shows under each spot until it has a number there.
-  const todo = [];
-  S.items.filter(inCount).forEach(it => {
-    if (!multiSpot(it)) { if (!(it.id in c.tally)) todo.push([it, spotsOf(it)[0] || '']); return; }
-    spotsOf(it).forEach(s => { if (partOf(it.id, s) === undefined) todo.push([it, s]); });
-  });
-  const order = [...new Set([...(c.spot ? [c.spot] : []), ...S.spots, ...todo.map(t => t[1]).filter(Boolean), ''])];
-  const groups = order.map(s => [s, todo.filter(t => norm(t[1]) === norm(s)).map(t => t[0]).sort((a, b) => a.name.localeCompare(b.name))]).filter(g => g[1].length);
+  countUpgrade(c);
+  // Every item on this count, under each spot it's kept in, in the order of the storage spots. Counted ones stay
+  // where they are (marked done), so typing cases and then bottles never jumps around.
+  const items = S.items.filter(it => inCount(it) || it.id in c.tally || (c.extra || []).includes(it.id));
+  const rows = [];
+  items.forEach(it => { const sp = multiSpot(it) ? spotsOf(it) : [spotsOf(it)[0] || '']; sp.forEach(s => rows.push([it, s])); });
+  const order = [...new Set([...(c.spot ? [c.spot] : []), ...S.spots, ...rows.map(r => r[1]).filter(Boolean), ''])];
+  const groups = order.map(s => [s, rows.filter(r => norm(r[1]) === norm(s)).map(r => r[0]).sort((a, b) => a.name.localeCompare(b.name))]).filter(g => g[1].length);
   const photo = s => S.photos[s] ? `<button class="plain" type="button" data-photo-open="${esc(s)}" aria-label="Bigger photo of ${esc(s)}" style="display:block;width:100%"><img class="spot-thumb" data-photo="${esc(s)}" alt="Photo of ${esc(s)}"></button>` : '';
   const head = s => !s ? 'No storage spot set' : c.spot && norm(s) !== norm(c.spot) ? `${s} · also kept here` : s;
-  $('#countTodo').innerHTML = (c.spot && !todo.length ? photo(c.spot) : '') + (todo.length ? `<h3>Not counted yet · ${todo.length}</h3>` + groups.map(([s, list]) => `
-    <details open style="margin-bottom:10px"><summary>${esc(head(s))} · ${list.length}</summary>
+  c.more = c.more || {};
+  const box = (it, s, k, v) => `<label class="cbox"><span>${esc(boxWord(it, k))}</span><input class="count-n" type="number" inputmode="decimal" step="any" min="0" data-e="${esc(it.id)}" data-spot="${esc(s)}" data-k="${esc(k)}" value="${v === undefined ? '' : esc(v)}" placeholder="–" aria-label="${esc(it.name)}${s ? ' in ' + esc(s) : ''}: ${esc(boxWord(it, k))}"></label>`;
+  const row = (it, s) => {
+    const sk = spotKey(it, s), typed = entOf(it.id, sk) || {};
+    const keys = countBoxes(it, s, c.more[it.id + '|' + sk]), more = countBoxes(it, s, true).length > keys.length;
+    return `<div class="li crow ${Object.keys(typed).length ? 'done' : ''}" data-rid="${esc(it.id)}" data-rs="${esc(sk)}"><div class="grow" style="min-width:0">
+      <div class="nm">${esc(it.name)}</div><div class="sub" data-sub>${esc(rowSub(it, s))}</div>
+      <div class="cboxes">${keys.map(k => box(it, s, k, typed[k])).join('')}${more ? `<button class="mini" type="button" data-more="${esc(it.id)}" data-spot="${esc(sk)}" aria-label="Other packs for ${esc(it.name)}" style="width:auto;padding:0 10px">＋ packs</button>` : ''}</div></div></div>`;
+  };
+  countHead();
+  $('#countList').innerHTML = '';
+  $('#countTodo').innerHTML = groups.map(([s, list]) => `
+    <details open style="margin-bottom:10px"><summary>${esc(head(s))} · ${list.filter(it => !entOf(it.id, spotKey(it, s))).length ? `${list.filter(it => !entOf(it.id, spotKey(it, s))).length} to go` : 'done ✓'}</summary>
       ${photo(s)}
-      <div class="list">${list.map(it => `<div class="li"><div class="grow"><div class="nm">${esc(it.name)}</div><div class="sub">${esc((multiSpot(it) ? `also in ${spotsOf(it).filter(x => norm(x) !== norm(s)).join(', ')} · ` : '') + countSub(it))}</div></div>
-        <input class="count-n" type="number" inputmode="decimal" step="any" min="0" data-todo="${esc(it.id)}" data-spot="${esc(multiSpot(it) ? s : '')}" placeholder="–" aria-label="Count for ${esc(it.name)}${multiSpot(it) ? ' in ' + esc(s) : ''}" style="width:70px"></div>`).join('')}</div>
-    </details>`).join('') : (ids.length ? `<div class="banner good" style="margin-top:12px">Everything ${c.spot ? 'in ' + esc(c.spot) : 'on the list'} is counted.</div>` : ''));
+      <div class="list">${list.map(it => row(it, s)).join('')}</div>
+    </details>`).join('') || '<div class="empty">Nothing to count here.</div>';
   fillPhotos($('#countTodo'));
   $$('[data-photo-open]', $('#countTodo')).forEach(b => b.onclick = () => spotPhotoSheet(b.dataset.photoOpen));
-
-  $$('[data-inc]').forEach(b => b.onclick = () => bump(b.dataset.inc, 1, b.dataset.spot));
-  $$('[data-dec]').forEach(b => b.onclick = () => bump(b.dataset.dec, -1, b.dataset.spot));
-  $$('[data-set]').forEach(i => i.onchange = () => { setCounted(i.dataset.set, i.dataset.spot, num(i.value)); renderCount(); });
-  $$('[data-todo]').forEach(i => i.onchange = () => {
-    const v = num(i.value);
-    if (v === null) return;
-    // Keep the page where it is: the row moves up into Counted.
-    const y = window.scrollY;
-    setCounted(i.dataset.todo, i.dataset.spot, v); renderCount();
-    window.scrollTo(0, y);
+  $$('[data-more]', $('#countTodo')).forEach(b => b.onclick = () => { c.more[b.dataset.more + '|' + b.dataset.spot] = true; renderCount(); });
+  // Typing only refreshes the rows of that item and the heading, so the keyboard and the page stay put.
+  $$('[data-e]', $('#countTodo')).forEach(i => i.onchange = () => {
+    setEntry(i.dataset.e, i.dataset.spot, i.dataset.k, num(i.value));
+    refreshRows(i.dataset.e);
   });
 }
-function bump(id, n, spot) {
-  const it = itemById(id);
-  if (it && multiSpot(it)) spot = spot || countSpotFor(it); else spot = '';
-  const cur = spot ? partOf(id, spot) || 0 : S.count.tally[id] || 0;
-  setCounted(id, spot, round2(cur + n));
-  renderCount();
+function rowSub(it, s) {
+  const sk = spotKey(it, s), typed = entOf(it.id, sk), c = S.count;
+  const extra = multiSpot(it) ? `also in ${spotsOf(it).filter(x => norm(x) !== norm(s)).join(', ')} · ` : '';
+  if (!typed) return extra + countSub(it);
+  const sum = spotSum(it, typed);
+  const op = typed.open ? ` (open ≈ ${fmt(openEst(it, typed.open))})` : '';
+  return `= ${fmt(sum)} ${isContainer(it) ? 'full' : plural(sum, unitWord(it))}${op}${multiSpot(it) ? ` · total ${fmt(c.tally[it.id])}` : ''} · ${isContainer(it) ? `sheet says ${fmt(unopened(it))} full` : `sheet says ${fmt(it.onHand)}`}`;
+}
+function countHead() {
+  const c = S.count, n = Object.keys(c.tally).length;
+  const label = c.spot ? `${c.spot} count` : { bar: 'Bar count', kitchen: 'Kitchen count', all: 'Full count' }[countArea()];
+  $('#countHead').textContent = `${label} · ${n === 1 ? '1 item' : n + ' items'} counted`;
+}
+function refreshRows(id) {
+  const it = itemById(id); if (!it) return;
+  $$(`#countTodo [data-rid="${CSS.escape(id)}"]`).forEach(r => {
+    const s = multiSpot(it) ? r.dataset.rs : (spotsOf(it)[0] || '');
+    r.classList.toggle('done', !!entOf(id, r.dataset.rs));
+    $('[data-sub]', r).textContent = rowSub(it, s);
+  });
+  $$('#countTodo details').forEach(d => {
+    const rs = $$('.crow', d), left = rs.filter(r => !r.classList.contains('done')).length;
+    const sm = $('summary', d); sm.textContent = sm.textContent.replace(/ · [^·]*$/, '') + ' · ' + (left ? `${left} to go` : 'done ✓');
+  });
+  countHead();
+}
+// A scan adds one of the pack scanned (a case barcode: one case) in the spot being counted.
+function bumpEntry(it, key, n) {
+  const spot = countSpotFor(it), sk = spotKey(it, spot);
+  const typed = entOf(it.id, sk) || {};
+  setEntry(it.id, spot, key, round2((typed[key] || 0) + n));
+  return spot;
 }
 function onCountCode(code) {
   if (!S.count) return;
   const hit = findByCode(code);
   if (!hit) {
     beep(false); Cam.pause();
-    unknownSheet(code, { onClose: () => { Cam.resume(); const h = findByCode(code); if (h) bump(h.item.id, h.mult); } });
+    unknownSheet(code, { onClose: () => { Cam.resume(); const h = findByCode(code); if (h && S.count) { bumpEntry(h.item, h.pack.key, 1); renderCount(); } } });
     return;
   }
   if (!isMine(hit.item)) { beep(false); toast(`${hit.item.name} is a ${AREAS[areaOf(hit.item)].toLowerCase()} item, not on this count`, { bad: true }); return; }
   beep(true);
-  const spot = countSpotFor(hit.item);
-  bump(hit.item.id, hit.mult, spot);
+  const it = hit.item, spot = bumpEntry(it, hit.pack.key, 1);
+  renderCount();
+  const typed = entOf(it.id, spotKey(it, spot)) || {};
   const fl = $('#countFlash');
-  fl.textContent = `+${hit.mult}${hit.isCase ? ' (case)' : ''} ${hit.item.name} → ${spot ? `${fmt(partOf(hit.item.id, spot))} in ${spot} (total ${fmt(S.count.tally[hit.item.id])})` : fmt(S.count.tally[hit.item.id])}`;
-  fl.classList.add('on'); clearTimeout(fl._t); fl._t = setTimeout(() => fl.classList.remove('on'), 1400);
+  fl.textContent = `+1 ${boxWord(it, hit.pack.key, 1)} · ${it.name} → ${boxText(it, spot, typed)}${spot ? ' in ' + spot : ''}`;
+  fl.classList.add('on'); clearTimeout(fl._t); fl._t = setTimeout(() => fl.classList.remove('on'), 1600);
 }
 $('#countManual').onsubmit = e => { e.preventDefault(); const c = normCode($('#countCode').value); $('#countCode').value = ''; if (c) onCountCode(c); };
 $('#countPick').onclick = async () => {
   const it = await pickItemSheet('Count an item');
-  if (!it) return;
+  if (!it || !S.count) return;
+  S.count.extra = [...new Set([...(S.count.extra || []), it.id])]; save(LS.count, S.count);
+  renderCount();
   const spot = countSpotFor(it);
-  bump(it.id, 0, spot);
-  const inp = $(`#countList [data-set="${CSS.escape(it.id)}"][data-spot="${CSS.escape(spot)}"]`); if (inp) { inp.focus(); inp.select(); }
+  const inp = $(`#countTodo [data-rid="${CSS.escape(it.id)}"][data-rs="${CSS.escape(spotKey(it, spot))}"] input`);
+  if (inp) { inp.scrollIntoView({ block: 'center' }); inp.focus(); }
 };
 $('#countDiscard').onclick = () => {
   if (Object.keys(S.count.tally).length && !confirm('Throw away this count?')) return;
@@ -1616,7 +1956,7 @@ $('#countSave').onclick = () => {
     </tbody></table>
     <button class="btn good block" type="button" id="doSave" style="margin-top:14px">Save ${diffs.length === 1 ? '1 count' : diffs.length + ' counts'}</button>`);
   $('#doSave', sh.body).onclick = () => {
-    diffs.forEach(d => stockChange(d.it, 'set', d.n, 'Count'));
+    diffs.forEach(d => stockChange(d.it, 'set', d.n, countNote(d.it)));
     Cam.stop(); S.count = null; save(LS.count, null);
     sh.close(); renderCount();
     toast(`Count saved · ${nItems(diffs.length)}`);
@@ -1648,7 +1988,12 @@ function orderRows(all) {
   const rows = visibleItems().filter(isLow).sort((a, b) => orderBy() === 'vendor' ? vRank(orderGroup(a)) - vRank(orderGroup(b)) || byCategory(a, b) : byCategory(a, b));
   return all || S.orderPick === 'All' ? rows : rows.filter(i => orderGroup(i) === S.orderPick);
 }
-const orderQty = i => Math.ceil(toOrder(i));
+// The pack an item is ordered in: the one picked on the Order list, else the pack it's bought in, else single ones.
+// orderN: how many of that pack; orderQty: the single ones that adds up to.
+const orderPackOf = i => { const l = packList(i), k = S.orderPack[i.id], b = buyPack(i); return (k && l.find(p => p.key === k)) || (b && l.find(p => p.key === b.name)) || l[0]; };
+const orderN = i => Math.ceil(round2(toOrder(i) / orderPackOf(i).qty));
+const orderQty = i => round2(orderN(i) * orderPackOf(i).qty);
+const orderWords = i => { const n = orderN(i), p = orderPackOf(i); return `${fmt(n)} ${packLabel(p, n)}`; };
 const lineCost = i => { const p = priceOf(i); return p === null || p === '' ? null : orderQty(i) * p; };
 
 // A vendor's contact line on the order list: tap to call, email or open the website.
@@ -1685,17 +2030,25 @@ function renderOrder() {
   const grouped = {};
   rows.forEach(r => { (grouped[orderGroup(r)] = grouped[orderGroup(r)] || []).push(r); });
   // Under a vendor: its price, and what the others charge, so a better price elsewhere shows.
+  // Prices are kept per single one and shown per pack it's ordered in ("$28.50/case").
+  const per = i => { const p = orderPackOf(i); return p.single ? [1, ' each'] : [p.qty, '/' + esc(p.name.toLowerCase())]; };
   const priceLine = i => {
-    const p = pricesOf(i);
-    if (!p.length) return num(i.cost) !== null ? ` · ${money2(num(i.cost))} each` : '';
+    const p = pricesOf(i), [q, w] = per(i);
+    if (!p.length) return num(i.cost) !== null ? ` · ${money2(num(i.cost) * q)}${w}` : '';
     const first = p[0];
-    const others = p.slice(1).filter(x => x.price !== '').map(x => `${esc(x.vendor)} ${money2(x.price)}`);
-    return first.price !== '' ? ` · ${money2(first.price)}${by === 'category' ? ' at ' + esc(first.vendor) : ''}` : '';
+    return first.price !== '' ? ` · ${money2(first.price * q)}${w}${by === 'category' ? ' at ' + esc(first.vendor) : ''}` : '';
   };
   // What the other vendors charge, on its own line so it never gets cut off on a phone.
   const otherPrices = i => {
-    const others = pricesOf(i).slice(1).filter(x => x.price !== '').map(x => `${esc(x.vendor)} ${money2(x.price)}`);
+    const [q] = per(i);
+    const others = pricesOf(i).slice(1).filter(x => x.price !== '').map(x => `${esc(x.vendor)} ${money2(x.price * q)}`);
     return others.length ? `<div class="sub">also ${others.join(' · ')}</div>` : '';
+  };
+  // Order in any of its packs: each choice says how many of that pack it takes.
+  const packPick = i => {
+    const l = packList(i), cur = orderPackOf(i), need = toOrder(i);
+    if (l.length < 2) return `<b>${fmt(orderN(i))}</b><span> ${esc(plural(orderN(i), unitWord(i)))}</span>`;
+    return `<select class="osel" data-op="${esc(i.id)}" aria-label="Order ${esc(i.name)} in">${l.map(p => { const n = Math.ceil(round2(need / p.qty)); return `<option value="${esc(p.key)}" ${p.key === cur.key ? 'selected' : ''}>${n} ${esc(packLabel(p, n))}</option>`; }).join('')}</select>`;
   };
   $('#orderBody').innerHTML = Object.entries(grouped).map(([g, list]) => {
     const costs = list.map(lineCost);
@@ -1703,10 +2056,15 @@ function renderOrder() {
     return `<h3 class="row"><span class="grow">${esc(g)}</span>${total ? `<span class="small-note">about ${money2(total)}${costs.some(c => c === null) ? ' +' : ''}</span>` : ''}</h3>
       ${by === 'vendor' ? vendorCard(g) : ''}
       <div class="list">${list.map(i => `
-      <button class="li" type="button" data-id="${esc(i.id)}"><div class="grow"><div class="nm">${esc(i.name)}</div><div class="sub">have ${fmt(i.onHand)} · par ${fmt(i.par)}${priceLine(i)}</div>${otherPrices(i)}</div>
-      <div class="qty"><span>order </span><b>${fmt(orderQty(i))}</b></div></button>`).join('')}</div>`;
+      <div class="li"><button class="plain grow" type="button" data-id="${esc(i.id)}" style="text-align:left;min-width:0"><div class="nm">${esc(i.name)}</div><div class="sub">have ${fmt(i.onHand)} of ${fmt(i.par)}${priceLine(i)}</div>${otherPrices(i)}</button>
+      <div class="qty">${packPick(i)}</div></div>`).join('')}</div>`;
   }).join('') + (by === 'vendor' && grouped[NO_VENDOR] && isManager() ? '<p class="small-note">Items under "No vendor set": add where you buy them in Edit item → Where we buy it.</p>' : '');
   $$('#orderBody [data-id]').forEach(x => x.onclick = () => itemSheet(itemById(x.dataset.id)));
+  $$('#orderBody [data-op]').forEach(x => x.onchange = () => {
+    const it = itemById(x.dataset.op), b = buyPack(it);
+    if (x.value === (b ? b.name : '1')) delete S.orderPack[it.id]; else S.orderPack[it.id] = x.value;
+    save(LS.orderPack, S.orderPack); renderOrder();
+  });
 }
 $('#orderShare').onclick = async () => {
   const rows = orderRows();
@@ -1718,7 +2076,7 @@ $('#orderShare').onclick = async () => {
     const v = orderBy() === 'vendor' ? vendorInfo(g) : null;
     const title = S.orderPick === 'All' ? g : '';
     const acct = v && v.account ? 'Account # ' + v.account : '';
-    return [[title, acct].filter(Boolean).join(' · '), ...list.map(i => `${orderQty(i)} × ${i.name}`)].filter(Boolean).join('\n');
+    return [[title, acct].filter(Boolean).join(' · '), ...list.map(i => `${i.name}: ${orderWords(i)}`)].filter(Boolean).join('\n');
   }).join('\n\n');
   try {
     if (navigator.share) await navigator.share({ text });
@@ -1763,14 +2121,16 @@ async function exportExcel(rows, name, sheet) {
 const stamp = () => new Date().toISOString().slice(0, 10);
 $('#exportExcel').onclick = () => exportExcel(S.items.map(i => ({
   Name: i.name, Category: i.category, Unit: i.unit, 'On Hand': num(i.onHand), Par: num(i.par), 'To Order': toOrder(i),
-  Cost: num(i.cost), Value: round2((num(i.onHand) || 0) * (num(i.cost) || 0)), UPC: i.upc, 'Case UPC': i.caseUpc, 'Case Qty': num(i.caseQty),
+  Cost: num(i.cost), Value: round2((num(i.onHand) || 0) * (num(i.cost) || 0)), UPC: i.upc, Packs: packsText(packsOf(i)),
   ...(POST.skytab ? { 'POS Names': i.posNames } : {}),
   'Last Counted': i.lastCounted ? new Date(i.lastCounted).toLocaleDateString() : ''
 })), `${FILE_TAG}_Inventory_${stamp()}.xlsx`, 'Inventory');
 $('#orderExcel').onclick = () => exportExcel(orderRows().map(i => {
   const v = vendorInfo(vendorOf(i)) || {};
-  return { Vendor: vendorOf(i), 'Account #': v.account || '', Category: i.category, Item: i.name, 'On Hand': num(i.onHand), Par: num(i.par), Order: orderQty(i),
-    Price: priceOf(i) ?? '', 'Est. cost': lineCost(i) === null ? '' : round2(lineCost(i)) };
+  const p = orderPackOf(i), pr = priceOf(i);
+  return { Vendor: vendorOf(i), 'Account #': v.account || '', Category: i.category, Item: i.name, 'On Hand': num(i.onHand), Par: num(i.par), Order: orderN(i),
+      'Order in': p.single ? plural(2, p.name) : packLabel(p), 'Single ones': orderQty(i),
+      Price: pr === null || pr === '' ? '' : round2(pr * p.qty), 'Est. cost': lineCost(i) === null ? '' : round2(lineCost(i)) };
 }), `${FILE_TAG}_Order_${S.orderPick === 'All' ? '' : S.orderPick.replace(/[^\w]+/g, '_') + '_'}${stamp()}.xlsx`, 'Order');
 
 $('#skytabExport').onclick = () => {
@@ -2664,6 +3024,15 @@ $('#showTrends').onclick = async () => {
 
 /* =========================================================== settings */
 function renderConn() {
+  const rc = $('#rcvCheckToggle');
+  if (rc) {
+    rc.checked = !!load(LS.rcvCheck, false);
+    rc.onchange = () => {
+      save(LS.rcvCheck, rc.checked);
+      if (!rc.checked && S.rcv.vendor) { S.rcv.vendor = ''; S.rcv.lines.forEach(l => { delete l.ordered; }); saveRcv(); }
+      renderRcv();
+    };
+  }
   const c = S.cfg;
   const status = !c.api && !c.demo ? '<span class="tag low">NOT SET UP</span>'
     : isDemo() ? '<span class="tag warn">DEMO MODE</span>'
@@ -2731,7 +3100,7 @@ function showView(v) {
 $$('nav.tabs [data-view]').forEach(b => b.onclick = () => showView(b.dataset.view));
 
 function renderAll() {
-  renderRecent(); renderOrder(); renderDue();
+  renderRecent(); renderOrder(); renderDue(); renderRcv();
   if (S.view === 'items') renderItems();
   if (S.view === 'count') renderCount();
   if (S.view === 'more') { renderConn(); renderAutoSales(); renderDemoCopy(); }
@@ -2796,13 +3165,19 @@ function labelHtml(it, withBarcode) {
     ${bars}${code ? `<div class="lbl-code">${esc(code)}${!it.upc ? ' (case)' : ''}</div>` : `<div class="lbl-sub">${esc(it.spot || it.category || '')}</div>`}</div>
     <div class="lbl-par"><span>PAR</span><b>${par === null ? '&nbsp;' : fmt(par)}</b>${par !== null && it.unit ? `<i>${esc(it.unit)}</i>` : ''}</div></div>`;
 }
-// Pages of 30; `skip` blank labels first, to use up a sheet that was partly used before.
-function labelPages(list, skip, withBarcode) {
+// Pages of 30; `skip` blank labels first, to use up a sheet that was partly used before. `adj` (printing only) is
+// this device's printer adjustment: {size: %, down: inches, right: inches, outline}.
+function labelPages(list, skip, withBarcode, adj) {
   const cells = Array(skip).fill('<div class="lbl"></div>').concat(list.map(it => labelHtml(it, withBarcode)));
   const pages = [];
-  for (let i = 0; i < cells.length; i += LABELS_PER_SHEET) pages.push(`<div class="lbl-page">${cells.slice(i, i + LABELS_PER_SHEET).join('')}</div>`);
+  const fix = adj ? ` style="transform: translate(${num(adj.right) || 0}in, ${num(adj.down) || 0}in) scale(${(num(adj.size) || 100) / 100})"` : '';
+  for (let i = 0; i < cells.length; i += LABELS_PER_SHEET) {
+    const page = `<div class="lbl-page${adj && adj.outline ? ' lbl-outline' : ''}"${fix}>${cells.slice(i, i + LABELS_PER_SHEET).join('')}</div>`;
+    pages.push(adj ? `<div class="lbl-sheet">${page}</div>` : page);
+  }
   return pages;
 }
+const LBL_ADJ0 = { size: 100, down: 0, right: 0, outline: false };
 $('#showLabels').onclick = () => {
   const o = { cat: '', spot: '', onlyPar: false, onlyCode: false, sort: 'spot', start: 1, barcode: true };
   const spotRank = s => { const i = S.spots.indexOf(s); return s ? (i < 0 ? S.spots.length : i) : S.spots.length + 1; };
@@ -2832,7 +3207,40 @@ $('#showLabels').onclick = () => {
     <div class="small-note" id="lblMore" style="margin-top:4px"></div>
     <button class="btn primary block" type="button" id="lblPrint" style="margin-top:12px">Print labels</button>
     <button class="btn block" type="button" id="lblExcel" style="margin-top:8px">Download for Avery Design &amp; Print (Excel)</button>
-    <p class="small-note">Printing: pick Letter paper, scale 100% (Actual size), margins None or Default, and turn off headers and footers. Print one page on plain paper first and hold it up to a label sheet to check it lines up.</p>`);
+    <p class="small-note">Printing: pick <b>Letter</b> paper, scale <b>100%</b> or <b>Actual size</b> (not Fit to page or Shrink to fit), margins None or Default, and turn off headers and footers.</p>
+    <details id="lblAdjBox" style="margin-top:10px"><summary><b>Labels don't line up?</b></summary>
+      <p class="small-note">Print a test page on plain paper, then hold it against a label sheet up to a window.</p>
+      <button class="btn block" type="button" id="lblTest" style="margin:6px 0 10px">Print test page (with label outlines)</button>
+      <p class="small-note"><b>Fine at the top but creeping off by the bottom</b>, or row 1 low and row 10 high: the printer shrank the page. First check the print settings above. If it still happens, raise Size: 106% undoes a printer that shrinks to 94%. Creeping the other way: lower Size.<br><b>Every label off by the same amount:</b> use Move down / Move right (a minus number moves up or left; 0.06 is about 1/16").</p>
+      <div class="grid2" style="grid-template-columns:1fr 1fr 1fr">
+        <div><label class="f">Size %</label><input class="t" data-adj="size" type="number" inputmode="decimal" step="0.5" min="85" max="115"></div>
+        <div><label class="f">Move down (in)</label><input class="t" data-adj="down" type="number" inputmode="decimal" step="0.03" min="-1" max="1"></div>
+        <div><label class="f">Move right (in)</label><input class="t" data-adj="right" type="number" inputmode="decimal" step="0.03" min="-1" max="1"></div>
+      </div>
+      <label class="row" style="gap:8px;margin:8px 0"><input type="checkbox" data-adj="outline"> Print label outlines on every page</label>
+      <div class="row" style="gap:8px"><span class="small-note grow" id="lblAdjNote"></span><button class="btn small" type="button" id="lblAdjReset">Reset</button></div>
+    </details>`);
+  // This device's printer adjustment, kept for next time.
+  const adj = Object.assign({}, LBL_ADJ0, load(LS.lblAdj, {}));
+  const showAdj = () => {
+    $$('[data-adj]', sh.body).forEach(el => { if (el.type === 'checkbox') el.checked = !!adj.outline; else el.value = adj[el.dataset.adj]; });
+    const on = adj.size !== 100 || adj.down || adj.right;
+    $('#lblAdjNote', sh.body).textContent = on ? `In use on this device: size ${fmt(adj.size)}%, down ${fmt(adj.down)}", right ${fmt(adj.right)}"` : 'No adjustment.';
+    if (on) $('#lblAdjBox', sh.body).open = true;
+  };
+  $$('[data-adj]', sh.body).forEach(el => el.onchange = () => {
+    const k = el.dataset.adj;
+    if (k === 'outline') adj.outline = el.checked;
+    else if (k === 'size') adj.size = Math.min(115, Math.max(85, num(el.value) || 100));
+    else adj[k] = Math.min(1, Math.max(-1, num(el.value) || 0));
+    save(LS.lblAdj, adj); showAdj();
+  });
+  $('#lblAdjReset', sh.body).onclick = () => { Object.assign(adj, LBL_ADJ0); save(LS.lblAdj, adj); showAdj(); };
+  $('#lblTest', sh.body).onclick = () => {
+    const list = pick();
+    printPages(labelPages(list.slice(0, LABELS_PER_SHEET - (o.start - 1)), o.start - 1, o.barcode, Object.assign({}, adj, { outline: true })).slice(0, 1));
+  };
+  showAdj();
   const draw = () => {
     const list = pick(), skip = o.start - 1;
     const sheets = Math.ceil((list.length + skip) / LABELS_PER_SHEET);
@@ -2853,7 +3261,7 @@ $('#showLabels').onclick = () => {
     else o[k] = el.value;
     draw();
   });
-  $('#lblPrint', sh.body).onclick = () => printPages(labelPages(pick(), o.start - 1, o.barcode));
+  $('#lblPrint', sh.body).onclick = () => printPages(labelPages(pick(), o.start - 1, o.barcode, adj));
   $('#lblExcel', sh.body).onclick = () => exportExcel(pick().map(i => ({
     Name: i.name, UPC: i.upc || i.caseUpc || '', Par: num(i.par) === null ? '' : num(i.par), Unit: i.unit || '', 'Storage spot': i.spot || '', Category: i.category || ''
   })), `${FILE_TAG}_Shelf_Labels_${stamp()}.xlsx`, 'Labels');
@@ -2935,15 +3343,28 @@ const BULK_ID = 'ID (leave as is)', BULK_WAS = 'On hand when downloaded (leave a
 const bulkFields = () => [
   ['Name', 'name', 'text'], ['Category', 'category', 'text'], ['Storage spots', 'spot', 'spots'], ['Area', 'area', 'area'],
   ['Type', 'type', 'type'], ['Kept as', 'kind', 'kind'], ['Unit', 'unit', 'text'], ['Par', 'par', 'num'], ['On hand', 'onHand', 'num'],
-  ['Cost', 'cost', 'num'], ['UPC', 'upc', 'code'], ['Case UPC', 'caseUpc', 'code'], ['Case qty', 'caseQty', 'num'],
+  ['Cost', 'cost', 'num'], ['UPC', 'upc', 'code'], ['Packs', 'packs', 'packs'],
   ['Pours per unit', 'poursPerUnit', 'num'], ...(POST.skytab ? [['SkyTab names', 'posNames', 'text']] : [])];
 const BULK_SHOW = {
   area: v => ({ bar: 'Bar', kitchen: 'Kitchen', shared: 'Shared' }[v || 'bar']),
   type: v => (v === 'supply' ? 'Supply' : 'Sold'),
   kind: v => ({ keg: 'Keg', box: 'Box' }[v] || '')
 };
-const bulkCur = (it, key, kind) => kind === 'spots' ? spotsOf(it).join(SPOT_SEP) : kind === 'num' ? num(it[key]) : kind === 'area' ? (it.area || 'bar') : kind === 'type' ? (it.type || 'sold') : String(it[key] === null || it[key] === undefined ? '' : it[key]);
-const bulkText = (key, kind, v) => v === null || v === '' ? '(blank)' : kind === 'num' ? fmt(v) : BULK_SHOW[kind] ? BULK_SHOW[kind](v) : String(v);
+// Packs in one cell, the same way the sheet keeps them: "6-pack x6 018200000256; *Case x24 018200001963" (* = bought by).
+const packsText = list => (list || []).map(p => `${p.buy ? '*' : ''}${p.name} x${p.qty}${p.upc ? ' ' + p.upc : ''}`).join('; ');
+function parsePacksText(s) {
+  const out = [];
+  for (const part of String(s || '').split(';').map(x => x.trim()).filter(Boolean)) {
+    const m = part.match(/^\s*(\*)?\s*(.*?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(\d{6,14})?\s*$/i);
+    if (!m || !(Number(m[3]) >= 1)) return { err: `"${part}" should look like  Case x24  with the barcode after it if there is one` };
+    const name = m[2].replace(/[;*]/g, '').trim().slice(0, 24) || `Pack of ${m[3]}`;
+    if (out.some(p => norm(p.name) === norm(name))) return { err: `two packs are called ${name}` };
+    out.push({ name, qty: Number(m[3]), upc: m[4] ? bulkCode(m[4]) : '', buy: !!m[1] && !out.some(p => p.buy) });
+  }
+  return out.slice(0, 6);
+}
+const bulkCur = (it, key, kind) => kind === 'packs' ? packsText(packsOf(it)) : kind === 'spots' ? spotsOf(it).join(SPOT_SEP) : kind === 'num' ? num(it[key]) : kind === 'area' ? (it.area || 'bar') : kind === 'type' ? (it.type || 'sold') : String(it[key] === null || it[key] === undefined ? '' : it[key]);
+const bulkText = (key, kind, v) => kind === 'packs' && v === '' ? '(none)' : v === null || v === '' ? '(blank)' : kind === 'num' ? fmt(v) : BULK_SHOW[kind] ? BULK_SHOW[kind](v) : String(v);
 // Excel turns a barcode typed as a number into one without its leading zero; put it back when the check digit says so.
 function bulkCode(v) {
   if (v === '' || v === null || v === undefined) return '';
@@ -2956,6 +3377,7 @@ function bulkParse(kind, raw) {
   if (kind === 'text') return s;
   if (kind === 'spots') { const seen = new Set(); return s.split('|').map(x => x.trim()).map(x => S.spots.find(sp => norm(sp) === norm(x)) || x).filter(x => x && !seen.has(norm(x)) && seen.add(norm(x))).join(SPOT_SEP); }
   if (kind === 'code') return bulkCode(raw);
+  if (kind === 'packs') { const l = parsePacksText(s); return l.err ? l : packsText(l); }
   if (kind === 'num') { if (s === '') return null; const n = Number(s.replace(/[$,\s]/g, '')); return isNaN(n) || n < 0 ? { err: `"${s}" isn't a number` } : n; }
   if (kind === 'area') return /^k/i.test(s) ? 'kitchen' : /^s/i.test(s) ? 'shared' : 'bar';
   if (kind === 'type') return /^sup/i.test(s) ? 'supply' : 'sold';
@@ -2970,7 +3392,8 @@ $('#bulkDown').onclick = async () => {
     const rows = visibleItems().slice().sort(byCategory).map(it => {
       const o = {};
       fields.forEach(([h, k, kind]) => { const v = bulkCur(it, k, kind); o[h] = v === null ? '' : BULK_SHOW[kind] ? BULK_SHOW[kind](v) : v; });
-      pricesOf(it).slice(0, 4).forEach((p, i) => { o['Vendor ' + (i + 1)] = p.vendor; o['Price ' + (i + 1)] = p.price; });
+      const bq = (buyPack(it) || { qty: 1 }).qty;
+      pricesOf(it).slice(0, 4).forEach((p, i) => { o['Vendor ' + (i + 1)] = p.vendor; o['Price ' + (i + 1)] = p.price === '' ? '' : round2(p.price * bq); });
       o[BULK_ID] = it.id; o[BULK_WAS] = num(it.onHand) ?? '';
       return o;
     });
@@ -2987,7 +3410,10 @@ $('#bulkDown').onclick = async () => {
       ['• You can delete whole columns you don\'t need. A column that isn\'t in the file changes nothing.'],
       ['• On hand: a number you change is saved as a count, so it shows in the log and the shrinkage report.'],
       ['  Numbers you didn\'t touch are left alone, even if someone counted in the app after you downloaded.'],
-      ['• Vendor 1–4 and Price 1–4: where you buy the item and its price per unit. Cost follows the lowest price.'],
+      ['• Vendor 1–4 and Price 1–4: where you buy the item and its price for the pack it\'s bought in (the * pack), like the'],
+      ['  invoice: $28.50 a case. The app works out the cost of a single one. Cost follows the lowest price.'],
+      ['• Packs: the packs it comes in, with ; between:   6-pack x6; *Case x24   Put * before the pack it\'s bought in, and'],
+      ['  the pack\'s barcode after it if it has one:   *Case x24 018200001963   Leave it blank if it\'s only bought one at a time.'],
       ['  A vendor name that isn\'t on the Vendors list yet is added to it.'],
       ['• Storage spots: an item kept in more than one spot lists them with | between, like  Back bar | Storage room'],
       ['  On hand is the total of all its spots. A new spot name is added to the storage spot list.'],
@@ -3067,19 +3493,22 @@ function bulkPlan(sheets) {
     }
     if (hasPrices) {
       const list = [];
+      // Prices are typed per buy pack (the * pack in Packs, after this row's change) and kept per single one.
+      const rowPacks = 'packs' in send ? parsePacksText(send.packs) : it ? packsOf(it) : [];
+      const bq = ((Array.isArray(rowPacks) ? rowPacks : []).find(x => x.buy) || { qty: 1 }).qty;
       for (let i = 1; i <= 4; i++) {
         const vendor = String(get('Vendor ' + i) ?? '').trim();
         const p = bulkParse('num', get('Price ' + i));
         if (p && p.err) { rowBad = rowBad || `Price ${i}: ${p.err}`; continue; }
-        if (vendor) list.push({ vendor, price: p === null ? '' : p });
+        if (vendor) list.push({ vendor, price: p === null ? '' : p / bq, typed: p });
         else if (p !== null) rowBad = rowBad || `Price ${i} has no vendor`;
       }
       if (rowBad) return bad(rowBad);
-      const key = l => sortPrices(l).map(x => norm(x.vendor) + '=' + x.price).join('|');
+      const key = l => sortPrices(l).map(x => norm(x.vendor) + '=' + (x.price === '' ? '' : round2(x.price * bq))).join('|');
       const cur = it ? pricesOf(it) : [];
       if (key(list) !== key(cur) && (it ? !(byName && !list.length) : list.length)) {
-        send.prices = list;
-        const txt = l => l.length ? sortPrices(l).map(x => x.vendor + (x.price !== '' ? ' ' + money2(x.price) : '')).join(', ') : '(none)';
+        send.prices = list.map(x => ({ vendor: x.vendor, price: x.price }));
+        const txt = l => l.length ? sortPrices(l).map(x => x.vendor + (x.price !== '' ? ' ' + money2(x.price * bq) : '')).join(', ') : '(none)';
         lines.push(it ? `Vendors: ${txt(cur)} → ${txt(list)}` : `Vendors: ${txt(list)}`);
         list.forEach(x => { if (!S.vendors.some(v => norm(v.name) === norm(x.vendor)) && !newVendors.some(v => norm(v) === norm(x.vendor))) newVendors.push(x.vendor); });
       }
@@ -3094,15 +3523,16 @@ function bulkPlan(sheets) {
   const codeOf = {};
   const planned = {};
   sends.forEach(s => { if (s.send.id) planned[s.send.id] = s; });
-  const finalItems = S.items.map(i => { const p = planned[i.id]; return { ref: p || null, name: i.name, upc: p && 'upc' in p.send ? p.send.upc : i.upc, caseUpc: p && 'caseUpc' in p.send ? p.send.caseUpc : i.caseUpc }; })
-    .concat(sends.filter(s => s.isNew).map(s => ({ ref: s, name: s.name, upc: s.send.upc || '', caseUpc: s.send.caseUpc || '' })));
+  const packCodes = (send, i) => ('packs' in send ? parsePacksText(send.packs) : i ? packsOf(i) : []).map(p => p.upc);
+  const finalItems = S.items.map(i => { const p = planned[i.id]; return { ref: p || null, name: i.name, codes: [p && 'upc' in p.send ? p.send.upc : i.upc, ...packCodes(p ? p.send : {}, i)] }; })
+    .concat(sends.filter(s => s.isNew).map(s => ({ ref: s, name: s.name, codes: [s.send.upc || '', ...packCodes(s.send, null)] })));
   const dropped = new Set();
-  finalItems.forEach(f => [f.upc, f.caseUpc].forEach(c => {
+  finalItems.forEach(f => f.codes.forEach(c => {
     if (!c) return;
     const other = codeOf[c];
     if (!other) { codeOf[c] = f; return; }
     const loser = f.ref || other.ref;
-    if (loser && !dropped.has(loser)) { dropped.add(loser); problems.push({ row: loser.row, name: loser.name, error: `Barcode ${c} would also be on "${loser === f.ref ? other.name : f.name}"` }); }
+    if (loser && !dropped.has(loser)) { dropped.add(loser); problems.push({ row: loser.row, name: loser.name, error: other === f ? `Barcode ${c} is on it twice` : `Barcode ${c} would also be on "${loser === f.ref ? other.name : f.name}"` }); }
   }));
   const keep = sends.filter(s => !dropped.has(s));
   const inFile = new Set(Object.keys(seen));
