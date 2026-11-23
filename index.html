@@ -394,6 +394,12 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
         <p class="hint" style="margin:4px 0 10px">Shelf labels: each item's name, barcode and par on Avery 18160 (or 5160) address labels, 30 to a sheet. Door sheets: a full page for the front of a cooler or freezer, listing what's kept inside.</p>
         <div class="grid2"><button class="btn block" type="button" id="showLabels">Shelf labels</button><button class="btn block" type="button" id="showDoors">Door sheets</button></div>
       </div>
+      <div class="mgr-only">
+        <b>Bulk edit in Excel</b>
+        <p class="hint" style="margin:4px 0 10px">Download every item to a spreadsheet, change storage spots, pars, vendor prices, on-hand counts and more in Excel, then upload it. You see every change before anything is saved.</p>
+        <div class="grid2"><button class="btn block" type="button" id="bulkDown">Download for bulk edit</button>
+          <label class="btn block">Upload bulk edit<input type="file" id="bulkFile" class="hidden" accept=".xlsx,.xls,.csv"></label></div>
+      </div>
       <div class="mgr-only hidden" id="demoCopyBox">
         <b>Copy from demo mode</b>
         <p class="hint" style="margin:4px 0 10px">Storage spots, categories or vendors you set up in demo mode on this device can be copied into the Google Sheet.</p>
@@ -423,7 +429,7 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
         <button class="btn block" type="button" id="demoToggle">Try demo mode</button>
       </div>
     </div>
-    <p class="hint" style="text-align:center"><span id="footName"></span> · Inventory scanner v1.6.3<br><a href="https://vfw9509.github.io/inventory/setup.html" style="color:inherit">Set this up for another Post</a></p>
+    <p class="hint" style="text-align:center"><span id="footName"></span> · Inventory scanner v1.7<br><a href="https://vfw9509.github.io/inventory/setup.html" style="color:inherit">Set this up for another Post</a></p>
   </section>
 </main>
 
@@ -689,6 +695,42 @@ const Demo = {
       case 'importItems': {
         const made = p.items.map(src => Object.assign({ category: '', unit: 'each', upc: '', caseUpc: '', caseQty: '', onHand: 0, par: '', cost: '', posNames: '', poursPerUnit: 1, lastCounted: '' }, src, { id: 'D' + uid(), updated: now, updatedBy: S.cfg.user }));
         db.items.push(...made); out = { ok: true, items: made, created: made.length }; break;
+      }
+      case 'bulkItems': {
+        // Same rules as Code.gs bulkItems_, without the sheet: only sent fields change, `count` is a count.
+        db.prices = db.prices || {}; db.vendors = db.vendors || []; db.spots = db.spots || DEFAULT_SPOTS.slice();
+        const errors = [], newVendors = [], newSpots = [];
+        let updated = 0, created = 0, counted = 0;
+        const owner = code => db.items.find(i => i.upc === code || i.caseUpc === code);
+        p.items.forEach(src => {
+          let it = src.id ? db.items.find(i => i.id === src.id) : null;
+          const label = src.name || (it && it.name) || 'New item';
+          if (src.id && !it) return errors.push({ name: label, error: 'Not on the sheet any more (deleted?)' });
+          if (!it && !src.name) return errors.push({ name: label, error: 'A new item needs a name' });
+          for (const c of [src.upc, src.caseUpc]) { const o = c && owner(c); if (o && o !== it) return errors.push({ name: label, error: `Barcode ${c} is already on "${o.name}"` }); }
+          const f = Object.assign({}, src); ['id', 'count', 'prices', 'onHand', 'openLeft'].forEach(k => delete f[k]);
+          if (!it) { it = Object.assign({ category: '', unit: 'each', upc: '', caseUpc: '', caseQty: '', onHand: 0, par: '', cost: '', posNames: '', poursPerUnit: 1, lastCounted: '', type: 'sold', area: 'bar', spot: '', kind: '', openLeft: '' }, f, { id: 'D' + uid() }); if (num(src.count) !== null) it.onHand = num(src.count); db.items.push(it); created++; log('NEW ITEM', it, it.onHand, 'Bulk edit (Excel)'); }
+          else { Object.assign(it, f); updated++; log('EDIT', it, '', 'Bulk edit (Excel)'); }
+          it.updated = now; it.updatedBy = S.cfg.user;
+          if (Array.isArray(src.prices)) {
+            const list = src.prices.slice(0, 4).map(x => {
+              const v = db.vendors.find(v => norm(v.name) === norm(x.vendor));
+              if (!v) { db.vendors.push({ name: x.vendor, contact: '', phone: '', email: '', website: '', account: '', notes: '' }); newVendors.push(x.vendor); }
+              return { vendor: v ? v.name : x.vendor, price: x.price };
+            });
+            if (list.length) db.prices[it.id] = sortPrices(list); else delete db.prices[it.id];
+            const low = list.filter(x => x.price !== '').map(x => x.price);
+            if (low.length) it.cost = Math.min(...low);
+          }
+          if (it.spot && !db.spots.some(s => norm(s) === norm(it.spot))) { db.spots.push(it.spot); newSpots.push(it.spot); }
+          if (src.count !== undefined && src.count !== '' && num(src.count) !== num(it.onHand)) {
+            const before = num(it.onHand) || 0;
+            it.onHand = num(src.count); it.lastCounted = now; counted++;
+            if (num(it.openLeft) !== null && num(it.openLeft) > it.onHand) it.openLeft = it.onHand;
+            log('COUNT', it, round2(it.onHand - before), 'Bulk edit (Excel)');
+          }
+        });
+        out = { ok: true, updated, created, counted, errors, newVendors, newSpots, items: db.items, prices: db.prices, vendors: db.vendors, spots: db.spots }; break;
       }
       case 'deleteItem': db.items = db.items.filter(i => i.id !== p.id); out = { ok: true }; break;
       case 'batch': {
@@ -2826,6 +2868,230 @@ $('#showDoors').onclick = () => {
   $$('[data-d]', sh.body).forEach(c => c.onchange = () => { o[c.dataset.d] = c.checked; draw(); });
   $('#doorPrint', sh.body).onclick = () => printPages(pages());
   draw();
+};
+
+/* ---------------------------------------- bulk edit in Excel (manager) */
+// Download: one row per item with everything a manager can edit, Vendor 1-4 / Price 1-4, and two columns at the
+// far right that tie each row back to its item. Upload: compare with what the app has, show every change, then
+// save them all in one trip (Code.gs bulkItems). On Hand only counts as changed if it differs from what it was at
+// download, so a count someone did in the app since isn't undone by an old number.
+const BULK_ID = 'ID (leave as is)', BULK_WAS = 'On hand when downloaded (leave as is)';
+const bulkFields = () => [
+  ['Name', 'name', 'text'], ['Category', 'category', 'text'], ['Storage spot', 'spot', 'text'], ['Area', 'area', 'area'],
+  ['Type', 'type', 'type'], ['Kept as', 'kind', 'kind'], ['Unit', 'unit', 'text'], ['Par', 'par', 'num'], ['On hand', 'onHand', 'num'],
+  ['Cost', 'cost', 'num'], ['UPC', 'upc', 'code'], ['Case UPC', 'caseUpc', 'code'], ['Case qty', 'caseQty', 'num'],
+  ['Pours per unit', 'poursPerUnit', 'num'], ...(POST.skytab ? [['SkyTab names', 'posNames', 'text']] : [])];
+const BULK_SHOW = {
+  area: v => ({ bar: 'Bar', kitchen: 'Kitchen', shared: 'Shared' }[v || 'bar']),
+  type: v => (v === 'supply' ? 'Supply' : 'Sold'),
+  kind: v => ({ keg: 'Keg', box: 'Box' }[v] || '')
+};
+const bulkCur = (it, key, kind) => kind === 'num' ? num(it[key]) : kind === 'area' ? (it.area || 'bar') : kind === 'type' ? (it.type || 'sold') : String(it[key] === null || it[key] === undefined ? '' : it[key]);
+const bulkText = (key, kind, v) => v === null || v === '' ? '(blank)' : kind === 'num' ? fmt(v) : BULK_SHOW[kind] ? BULK_SHOW[kind](v) : String(v);
+// Excel turns a barcode typed as a number into one without its leading zero; put it back when the check digit says so.
+function bulkCode(v) {
+  if (v === '' || v === null || v === undefined) return '';
+  let s = normCode(typeof v === 'number' ? String(Math.round(v)) : String(v));
+  if ((s.length === 11 || s.length === 7) && gtinOk('0' + s)) s = '0' + s;
+  return s;
+}
+function bulkParse(kind, raw) {
+  const s = String(raw === null || raw === undefined ? '' : raw).trim();
+  if (kind === 'text') return s;
+  if (kind === 'code') return bulkCode(raw);
+  if (kind === 'num') { if (s === '') return null; const n = Number(s.replace(/[$,\s]/g, '')); return isNaN(n) || n < 0 ? { err: `"${s}" isn't a number` } : n; }
+  if (kind === 'area') return /^k/i.test(s) ? 'kitchen' : /^s/i.test(s) ? 'shared' : 'bar';
+  if (kind === 'type') return /^sup/i.test(s) ? 'supply' : 'sold';
+  if (kind === 'kind') return /^k/i.test(s) ? 'keg' : /^b/i.test(s) ? 'box' : '';
+  return s;
+}
+$('#bulkDown').onclick = async () => {
+  try {
+    await loadScript(LIB_XLSX);
+    const X = window.XLSX, fields = bulkFields();
+    const header = [...fields.map(f => f[0]), 'Vendor 1', 'Price 1', 'Vendor 2', 'Price 2', 'Vendor 3', 'Price 3', 'Vendor 4', 'Price 4', BULK_ID, BULK_WAS];
+    const rows = visibleItems().slice().sort(byCategory).map(it => {
+      const o = {};
+      fields.forEach(([h, k, kind]) => { const v = bulkCur(it, k, kind); o[h] = v === null ? '' : BULK_SHOW[kind] ? BULK_SHOW[kind](v) : v; });
+      pricesOf(it).slice(0, 4).forEach((p, i) => { o['Vendor ' + (i + 1)] = p.vendor; o['Price ' + (i + 1)] = p.price; });
+      o[BULK_ID] = it.id; o[BULK_WAS] = num(it.onHand) ?? '';
+      return o;
+    });
+    const ws = X.utils.json_to_sheet(rows, { header });
+    ws['!cols'] = header.map(h => ({ wch: h === 'Name' ? 34 : h === BULK_ID || h === BULK_WAS ? 16 : Math.max(9, h.length + 3) }));
+    const help = X.utils.aoa_to_sheet([
+      ['How to use this file'], [''],
+      ['1. Change anything on the Items sheet, save the file, then in the app open More → Upload bulk edit.'],
+      ['2. The app shows every change before it saves anything. Nothing changes until you tap Save.'],
+      [''],
+      ['• Leave the two columns at the far right as they are. The ID ties each row to its item, even if you rename it.'],
+      ['• New item: add a row and leave the ID blank.'],
+      ['• Deleting a row does not delete the item. Delete items in the app.'],
+      ['• You can delete whole columns you don\'t need. A column that isn\'t in the file changes nothing.'],
+      ['• On hand: a number you change is saved as a count, so it shows in the log and the shrinkage report.'],
+      ['  Numbers you didn\'t touch are left alone, even if someone counted in the app after you downloaded.'],
+      ['• Vendor 1–4 and Price 1–4: where you buy the item and its price per unit. Cost follows the lowest price.'],
+      ['  A vendor name that isn\'t on the Vendors list yet is added to it.'],
+      ['• Storage spot: a new spot name is added to the storage spot list.'],
+      ['• Area: Bar, Kitchen or Shared.   Type: Sold or Supply.   Kept as: blank, Keg or Box.'],
+      ['• Barcodes: Excel may drop a leading zero from a barcode typed as a number. The app puts it back.']]);
+    help['!cols'] = [{ wch: 110 }];
+    const wb = X.utils.book_new();
+    X.utils.book_append_sheet(wb, ws, 'Items');
+    X.utils.book_append_sheet(wb, help, 'How to use');
+    X.writeFile(wb, `${FILE_TAG}_Bulk_Edit_${stamp()}.xlsx`);
+  } catch (e) { toast(e.message, { bad: true }); }
+};
+// Works out what a file would change. Returns {sends, problems, newVendors, newSpots, counts, missing}.
+function bulkPlan(sheets) {
+  const fields = bulkFields();
+  let rows = null, h = -1;
+  for (const s of sheets) {
+    for (let i = 0; i < Math.min(s.rows.length, 15); i++) if (s.rows[i].map(c => norm(c)).includes('name')) { rows = s.rows; h = i; break; }
+    if (rows) break;
+  }
+  if (!rows) throw new Error('No Name column in that file. Use the file from Download for bulk edit.');
+  const idx = {};
+  rows[h].forEach((c, i) => { const k = norm(c); if (k && idx[k] === undefined) idx[k] = i; });
+  const has = hd => idx[norm(hd)] !== undefined;
+  const hasPrices = [1, 2, 3, 4].some(n => has('Vendor ' + n) || has('Price ' + n));
+  const byNameCount = {};
+  S.items.forEach(i => { byNameCount[norm(i.name)] = (byNameCount[norm(i.name)] || 0) + 1; });
+  const sends = [], problems = [], seen = {}, newVendors = [], newSpots = [];
+  rows.slice(h + 1).forEach((r, n) => {
+    const rowNo = h + n + 2;
+    if (!r.some(c => String(c === null || c === undefined ? '' : c).trim() !== '')) return;
+    const get = hd => (has(hd) ? r[idx[norm(hd)]] : undefined);
+    const id = String(get(BULK_ID) ?? get('ID') ?? '').trim();
+    const name = String(get('Name') ?? '').trim();
+    let it = id ? itemById(id) : null;
+    const label = name || (it && it.name) || 'Row ' + rowNo;
+    const bad = error => problems.push({ row: rowNo, name: label, error });
+    if (id && !it) return bad('Its ID isn\'t on the item list (was the item deleted?)');
+    // A row with no ID that names an item already on the list (a new row uploaded twice, or a file someone made
+    // themselves): match it by name, and only cells with something in them count as changes.
+    const byName = !id && !!name && byNameCount[norm(name)] === 1;
+    if (byName) it = S.items.find(i => norm(i.name) === norm(name));
+    if (it && seen[it.id]) return bad(`Same item as row ${seen[it.id]}`);
+    if (it) seen[it.id] = rowNo;
+    if (has('Name') && !name) return bad(it ? 'The name is blank' : 'A new row needs a name');
+    const send = it ? { id: it.id } : {};
+    const lines = [];
+    let rowBad = '';
+    fields.forEach(([hd, key, kind]) => {
+      if (!has(hd) || key === 'onHand') return;
+      const v = bulkParse(kind, get(hd));
+      if (v && v.err) { rowBad = rowBad || `${hd}: ${v.err}`; return; }
+      const val = kind === 'num' && v === null ? '' : v;
+      if (byName && (key === 'name' || String(get(hd) ?? '').trim() === '')) return;
+      if (it) {
+        const cur = bulkCur(it, key, kind);
+        if (String(cur === null ? '' : cur) === String(val)) return;
+        send[key] = val; lines.push(`${hd}: ${bulkText(key, kind, cur)} → ${bulkText(key, kind, val)}`);
+      } else if (key === 'name') send.name = val;
+      else if (val !== '' && !(kind === 'area' && val === 'bar') && !(kind === 'type' && val === 'sold')) {
+        send[key] = val; lines.push(`${hd}: ${bulkText(key, kind, val)}`);
+      }
+    });
+    if (rowBad) return bad(rowBad);
+    if (has('On hand')) {
+      const v = bulkParse('num', get('On hand'));
+      if (v && v.err) return bad('On hand: ' + v.err);
+      if (v !== null) {
+        const was = num(get(BULK_WAS));
+        const base = it ? (was !== null ? was : num(it.onHand) || 0) : null;
+        if (!it || (v !== base && v !== num(it.onHand))) {
+          send.count = v;
+          lines.push(it ? `On hand: ${fmt(it.onHand)} → ${fmt(v)} (saved as a count)` : `On hand: ${fmt(v)}`);
+        }
+      }
+    }
+    if (hasPrices) {
+      const list = [];
+      for (let i = 1; i <= 4; i++) {
+        const vendor = String(get('Vendor ' + i) ?? '').trim();
+        const p = bulkParse('num', get('Price ' + i));
+        if (p && p.err) { rowBad = rowBad || `Price ${i}: ${p.err}`; continue; }
+        if (vendor) list.push({ vendor, price: p === null ? '' : p });
+        else if (p !== null) rowBad = rowBad || `Price ${i} has no vendor`;
+      }
+      if (rowBad) return bad(rowBad);
+      const key = l => sortPrices(l).map(x => norm(x.vendor) + '=' + x.price).join('|');
+      const cur = it ? pricesOf(it) : [];
+      if (key(list) !== key(cur) && (it ? !(byName && !list.length) : list.length)) {
+        send.prices = list;
+        const txt = l => l.length ? sortPrices(l).map(x => x.vendor + (x.price !== '' ? ' ' + money2(x.price) : '')).join(', ') : '(none)';
+        lines.push(it ? `Vendors: ${txt(cur)} → ${txt(list)}` : `Vendors: ${txt(list)}`);
+        list.forEach(x => { if (!S.vendors.some(v => norm(v.name) === norm(x.vendor)) && !newVendors.some(v => norm(v) === norm(x.vendor))) newVendors.push(x.vendor); });
+      }
+      // With a price on the row, Cost follows the lowest price, so the Cost column is ignored.
+      if ('cost' in send && list.some(x => x.price !== '')) { delete send.cost; lines.splice(lines.findIndex(l => l.startsWith('Cost:')), 1); }
+    }
+    if ('spot' in send && send.spot && !S.spots.some(s => norm(s) === norm(send.spot)) && !newSpots.some(s => norm(s) === norm(send.spot))) newSpots.push(send.spot);
+    if (!lines.length && it) return;
+    sends.push({ row: rowNo, name: it ? it.name : name, isNew: !it, lines, send });
+  });
+  // Barcodes: after these changes, no two items may share one.
+  const codeOf = {};
+  const planned = {};
+  sends.forEach(s => { if (s.send.id) planned[s.send.id] = s; });
+  const finalItems = S.items.map(i => { const p = planned[i.id]; return { ref: p || null, name: i.name, upc: p && 'upc' in p.send ? p.send.upc : i.upc, caseUpc: p && 'caseUpc' in p.send ? p.send.caseUpc : i.caseUpc }; })
+    .concat(sends.filter(s => s.isNew).map(s => ({ ref: s, name: s.name, upc: s.send.upc || '', caseUpc: s.send.caseUpc || '' })));
+  const dropped = new Set();
+  finalItems.forEach(f => [f.upc, f.caseUpc].forEach(c => {
+    if (!c) return;
+    const other = codeOf[c];
+    if (!other) { codeOf[c] = f; return; }
+    const loser = f.ref || other.ref;
+    if (loser && !dropped.has(loser)) { dropped.add(loser); problems.push({ row: loser.row, name: loser.name, error: `Barcode ${c} would also be on "${loser === f.ref ? other.name : f.name}"` }); }
+  }));
+  const keep = sends.filter(s => !dropped.has(s));
+  const inFile = new Set(Object.keys(seen));
+  return { sends: keep, problems: problems.sort((a, b) => a.row - b.row), newVendors, newSpots,
+    counts: keep.filter(s => 'count' in s.send).length, missing: visibleItems().filter(i => !inFile.has(i.id) && !keep.some(s => s.send.id === i.id)).length };
+}
+$('#bulkFile').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  if (!isManager()) return toast('Bulk edit needs the manager PIN', { bad: true });
+  let plan;
+  try { plan = bulkPlan(await readSheetFile(f)); } catch (err) { return toast(err.message, { bad: true, ms: 6000 }); }
+  const sh = openSheet('Upload bulk edit', '');
+  const changedN = plan.sends.filter(s => !s.isNew).length, newN = plan.sends.filter(s => s.isNew).length;
+  const summary = [changedN ? nItems(changedN) + ' changed' : '', newN ? newN + ' new' : '', plan.counts ? `${plan.counts} on-hand ${plan.counts === 1 ? 'count' : 'counts'}` : '',
+    plan.problems.length ? `${plan.problems.length} ${plan.problems.length === 1 ? 'row' : 'rows'} with a problem` : ''].filter(Boolean).join(' · ');
+  sh.body.innerHTML = `
+    <p class="hint">${plan.sends.length ? 'Here is everything this file changes. Nothing is saved until you tap Save.' : 'This file doesn\'t change anything.'}</p>
+    ${summary ? `<h3>${esc(summary)}</h3>` : ''}
+    ${plan.newVendors.length ? `<div class="banner warn">New vendors to add to the Vendors list: <b>${esc(plan.newVendors.join(', '))}</b>. Check the spelling: a typo makes a second vendor.</div>` : ''}
+    ${plan.newSpots.length ? `<div class="banner warn">New storage spots to add: <b>${esc(plan.newSpots.join(', '))}</b>.</div>` : ''}
+    ${plan.problems.length ? `<h3>Skipped (fix these in the file and upload again)</h3><div class="list">${plan.problems.map(p => `<div class="li"><div class="grow"><div class="nm">Row ${p.row}: ${esc(p.name)}</div><div class="sub" style="white-space:normal">${esc(p.error)}</div></div></div>`).join('')}</div>` : ''}
+    ${plan.sends.length ? `<h3>Changes</h3><div class="list">${plan.sends.map(s => `<div class="li"><div class="grow"><div class="nm">${esc(s.name)}${s.isNew ? ' <span class="tag ok">NEW</span>' : ''}</div>
+      ${s.lines.map(l => `<div class="sub" style="white-space:normal">${esc(l)}</div>`).join('')}</div></div>`).join('')}</div>` : ''}
+    <p class="small-note">${plan.missing === 1 ? '1 item on the list isn’t in this file; it stays as it is. ' : plan.missing ? plan.missing + ' items on the list aren’t in this file; they stay as they are. ' : ''}Deleting a row in Excel never deletes an item.</p>
+    ${plan.sends.length ? `<button class="btn primary block" type="button" id="bulkGo" style="margin-top:12px">Save ${plan.sends.length === 1 ? '1 change' : plan.sends.length + ' changes'}</button>` : ''}`;
+  const go = $('#bulkGo', sh.body);
+  if (go) go.onclick = async () => {
+    go.disabled = true; go.textContent = 'Saving…';
+    const totals = { updated: 0, created: 0, counted: 0, errors: [] };
+    try {
+      for (let i = 0; i < plan.sends.length; i += 500) {
+        const r = await api('bulkItems', { items: plan.sends.slice(i, i + 500).map(s => s.send) });
+        if (!r.ok) throw new Error(r.error);
+        totals.updated += r.updated; totals.created += r.created; totals.counted += r.counted; totals.errors.push(...(r.errors || []));
+      }
+      await pull(true, true);
+      const done = [totals.updated ? nItems(totals.updated) + ' changed' : '', totals.created ? totals.created + ' new' : '', totals.counted ? totals.counted + ' counted' : ''].filter(Boolean).join(' · ') || 'Nothing needed saving';
+      sh.body.innerHTML = `<p class="hint">Saved: <b>${esc(done)}</b>.</p>
+        ${totals.errors.length ? `<h3>Not saved</h3><div class="list">${totals.errors.map(x => `<div class="li"><div class="grow"><div class="nm">${esc(x.name)}</div><div class="sub" style="white-space:normal">${esc(x.error)}</div></div></div>`).join('')}</div>` : ''}
+        <button class="btn primary block" type="button" id="bulkDone" style="margin-top:12px">Done</button>`;
+      $('#bulkDone', sh.body).onclick = () => sh.close();
+      toast('Bulk edit saved · ' + done);
+    } catch (err) {
+      go.disabled = false; go.textContent = 'Try again';
+      toast(err instanceof NetError ? 'No connection. Nothing more was saved; try again when you have signal.' : err.message, { bad: true, ms: 6000 });
+    }
+  };
 };
 
 /* ---------------------------------------- copy demo-mode setup to the sheet (manager) */
