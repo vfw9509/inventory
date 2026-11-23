@@ -429,7 +429,7 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
         <button class="btn block" type="button" id="demoToggle">Try demo mode</button>
       </div>
     </div>
-    <p class="hint" style="text-align:center"><span id="footName"></span> · Inventory scanner v1.7<br><a href="https://vfw9509.github.io/inventory/setup.html" style="color:inherit">Set this up for another Post</a></p>
+    <p class="hint" style="text-align:center"><span id="footName"></span> · Inventory scanner v1.8<br><a href="https://vfw9509.github.io/inventory/setup.html" style="color:inherit">Set this up for another Post</a></p>
   </section>
 </main>
 
@@ -606,6 +606,11 @@ function findByCode(code) {
   return null;
 }
 const itemById = id => S.items.find(i => i.id === id);
+// An item can be kept in several storage spots; the Spot column holds them as "Back bar | Storage room".
+const SPOT_SEP = ' | ';
+const spotsOf = it => String((it && it.spot) || '').split('|').map(s => s.trim()).filter(Boolean);
+const hasSpot = (it, s) => spotsOf(it).some(x => norm(x) === norm(s));
+const spotWords = it => spotsOf(it).join(', ');
 function upsertLocal(it) {
   const i = S.items.findIndex(x => x.id === it.id);
   if (i >= 0) S.items[i] = it; else S.items.push(it);
@@ -629,7 +634,7 @@ const Demo = {
       mk('Bud Light (bottle)', 'Bottle Beer', 'bottle', 30, 48, 1, 'Bud Light', { spot: 'Beer cooler' }),
       mk('Coors Light (bottle)', 'Bottle Beer', 'bottle', 52, 48, 1, 'Coors Light', { spot: 'Beer cooler' }),
       mk('Bud Light ½ keg', 'Draft Beer', 'keg', 1.6, 2, 124, 'Bud Light Draft', { kind: 'keg', openLeft: 0.6, spot: 'Walk-in cooler' }),
-      mk('Crown Royal 750 mL', 'Liquor', 'bottle', 1, 4, 16, 'Crown Royal'),
+      mk('Crown Royal 750 mL', 'Liquor', 'bottle', 1, 4, 16, 'Crown Royal', { spot: 'Back bar | Storage room' }),
       mk('Captain Morgan 750 mL', 'Liquor', 'bottle', 2, 2, 16, 'Capt Morgan, Rum & Coke'),
       mk('Coke (can)', 'N/A Bev', 'can', 20, 24, 1, 'Coke', { spot: 'Beer cooler' }),
       mk('Plastic cups (sleeve)', 'Supplies', 'sleeve', 6, 4, 1, '', { type: 'supply', area: 'shared', spot: 'Storage room', posNames: '' }),
@@ -660,7 +665,11 @@ const Demo = {
         const key = action === 'saveSpots' ? 'spot' : 'category', list = action === 'saveSpots' ? 'spots' : 'categories';
         const ren = p.renames || {};
         let moved = 0;
-        db.items.forEach(i => { const to = Object.keys(ren).find(k => norm(k) === norm(i[key])); if (to && i[key] !== ren[to]) { i[key] = ren[to]; moved++; } });
+        const renTo = v => { const k = Object.keys(ren).find(x => norm(x) === norm(v)); return k ? ren[k] : v; };
+        db.items.forEach(i => {
+          const to = key === 'spot' ? [...new Set(spotsOf(i).map(renTo))].join(SPOT_SEP) : renTo(i[key]);
+          if (i[key] !== to) { i[key] = to; moved++; }
+        });
         db[list] = [...new Set(p[list].map(s => String(s).trim()).filter(Boolean))];
         out = { ok: true, [list]: db[list], moved, photos: {} }; break;
       }
@@ -722,7 +731,7 @@ const Demo = {
             const low = list.filter(x => x.price !== '').map(x => x.price);
             if (low.length) it.cost = Math.min(...low);
           }
-          if (it.spot && !db.spots.some(s => norm(s) === norm(it.spot))) { db.spots.push(it.spot); newSpots.push(it.spot); }
+          spotsOf(it).forEach(sp => { if (!db.spots.some(s => norm(s) === norm(sp))) { db.spots.push(sp); newSpots.push(sp); } });
           if (src.count !== undefined && src.count !== '' && num(src.count) !== num(it.onHand)) {
             const before = num(it.onHand) || 0;
             it.onHand = num(src.count); it.lastCounted = now; counted++;
@@ -1033,7 +1042,7 @@ function itemSheet(item, ctx = {}) {
     const words = containerWords(live);
     const mine = isMine(live);
     sh.body.innerHTML = `
-      <div class="small-note" style="margin:-6px 0 10px">${esc([live.category, live.unit].filter(Boolean).join(' · '))}${live.upc ? ' · UPC ' + esc(live.upc) : ''}${live.spot ? ' · ' + esc(live.spot) : ''}${live.type === 'supply' ? ' · <span class="tag warn">SUPPLY</span>' : ''}</div>
+      <div class="small-note" style="margin:-6px 0 10px">${esc([live.category, live.unit].filter(Boolean).join(' · '))}${live.upc ? ' · UPC ' + esc(live.upc) : ''}${live.spot ? ' · ' + esc(spotWords(live)) : ''}${live.type === 'supply' ? ' · <span class="tag warn">SUPPLY</span>' : ''}</div>
       ${pricesOf(live).length ? `<div class="small-note" style="margin:-4px 0 10px">Buy from: ${pricesOf(live).map((p, i) => `${i ? '' : '<b>'}${esc(p.vendor)}${p.price !== '' ? ' $' + Number(p.price).toFixed(2) : ''}${i ? '' : '</b>'}`).join(' · ')}</div>` : ''}
       <div class="bignum">
         ${box
@@ -1191,8 +1200,9 @@ function renderItemForm(host, it, opts) {
         <option value="" ${isContainer(it) ? '' : 'selected'}>Bottles, cans, cases or each</option>
         <option value="keg" ${it.kind === 'keg' ? 'selected' : ''}>Keg (draft beer)</option>
         <option value="box" ${it.kind === 'box' ? 'selected' : ''}>Syrup box (soda gun)</option></select></div>` : ''}
-      <div class="field" style="margin-top:12px"><label class="f">Kept where</label><select class="t" name="spot"><option value="">Not set</option>${[...new Set([...S.spots, it.spot].filter(Boolean))].map(s => `<option ${s === it.spot ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
-        <div class="small-note">Groups the item in the count checklist.</div></div>
+      <div class="field" style="margin-top:12px"><label class="f">Kept where</label>
+        <div class="chips" id="spotPick" style="flex-wrap:wrap;padding-bottom:4px">${[...S.spots, ...spotsOf(it).filter(s => !S.spots.some(x => norm(x) === norm(s)))].map(s => `<button type="button" class="chip ${hasSpot(it, s) ? 'on' : ''}" data-spot-pick="${esc(s)}" aria-pressed="${hasSpot(it, s)}">${esc(s)}</button>`).join('')}</div>
+        <div class="small-note">Tap every spot it's kept in, like the bar and the storage room. On hand is the total of all of them, and a count asks for each spot.</div></div>
       <div class="grid2" style="margin-top:12px" id="ohPlain">
         <div><label class="f">${opts.isNew ? 'How many are here now?' : 'On hand'}</label><input class="t" name="onHand" type="number" inputmode="decimal" step="any" value="${esc(it.onHand ?? '')}" ${isManager() || opts.isNew ? '' : 'readonly'}><div class="small-note" id="ohNote">${opts.isNew ? 'single units' : ''}</div></div>
         <div><label class="f">Par (keep on hand)</label><input class="t" name="par" type="number" inputmode="decimal" step="any" value="${esc(it.par ?? '')}" ${mgr ? '' : 'readonly'}></div>
@@ -1277,6 +1287,7 @@ function renderItemForm(host, it, opts) {
     f.poursPerUnit.classList.toggle('hidden', !c);
     if (!c) f.poursPerUnit.value = f.pourPreset.value;
   };
+  $$('[data-spot-pick]', f).forEach(b => b.onclick = () => { b.classList.toggle('on'); b.setAttribute('aria-pressed', b.classList.contains('on')); });
   const del = $('[data-del]', f);
   if (del) del.onclick = async () => {
     if (!confirm(`Delete "${it.name}" from inventory? Its history stays in the Log sheet.`)) return;
@@ -1306,7 +1317,7 @@ function renderItemForm(host, it, opts) {
       patch.caseQty = v('caseQty');
       if (isManager()) patch.onHand = v('onHand');
     }
-    patch.spot = v('spot');
+    patch.spot = $$('[data-spot-pick].on', f).map(b => b.dataset.spotPick).join(SPOT_SEP);
     if (isManager()) {
       patch.cost = v('cost');
       if (vp) {
@@ -1427,7 +1438,33 @@ $('#addItemBtn').onclick = () => {
 const COUNT_AREAS = { bar: ['bar', 'shared'], kitchen: ['kitchen', 'shared'], all: ['bar', 'kitchen', 'shared'] };
 const countArea = () => (S.count && S.count.area) || (S.role === 'kitchen' ? 'kitchen' : isManager() ? 'all' : 'bar');
 // A count covers an area (bar, kitchen, everything), or just one storage spot of it.
-const inCount = it => COUNT_AREAS[countArea()].includes(areaOf(it)) && isMine(it) && (!S.count || !S.count.spot || (it.spot || '') === S.count.spot);
+const inCount = it => COUNT_AREAS[countArea()].includes(areaOf(it)) && isMine(it) && (!S.count || !S.count.spot || hasSpot(it, S.count.spot));
+// An item kept in several spots gets a number for each spot (S.count.parts[id][spot]); the count saves their total
+// (S.count.tally[id]), because on hand is one number for the whole Post. A spot count of the bar also asks for the
+// item's other spots, so the total stays right.
+const multiSpot = it => spotsOf(it).length > 1;
+const partOf = (id, spot) => ((S.count.parts || {})[id] || {})[spot];
+// The spot a scan or a picked item goes to: the spot being counted, else the spot last worked in, else its first.
+function countSpotFor(it) {
+  if (!multiSpot(it)) return '';
+  const sp = spotsOf(it), c = S.count;
+  return sp.find(s => c.spot && norm(s) === norm(c.spot)) || sp.find(s => c.at && norm(s) === norm(c.at)) || sp[0];
+}
+function setCounted(id, spot, v) {
+  const c = S.count, it = itemById(id);
+  if (!it || !multiSpot(it) || !spot) {
+    delete c.tally[id];
+    if (v !== null) c.tally[id] = Math.max(0, v);  // re-inserted, so the latest sits at the top
+  } else {
+    c.parts = c.parts || {};
+    const p = c.parts[id] = c.parts[id] || {};
+    if (v === null) delete p[spot]; else p[spot] = Math.max(0, v);
+    delete c.tally[id];
+    if (Object.keys(p).length) c.tally[id] = round2(Object.values(p).reduce((a, b) => a + b, 0)); else delete c.parts[id];
+  }
+  if (spot) c.at = spot;
+  save(LS.count, c);
+}
 // What the sheet says, in the terms a count uses: kegs and syrup boxes count full ones only.
 const sheetCount = it => isContainer(it) ? unopened(it) : num(it.onHand) || 0;
 const countSub = it => isContainer(it) ? `full ${containerWords(it)} · sheet says ${fmt(unopened(it))} full` : `sheet says ${fmt(it.onHand)}`;
@@ -1472,8 +1509,8 @@ function renderCount() {
     // Or one storage spot at a time: the spots that hold this person's items, in walking order.
     const area = S.role === 'kitchen' ? 'kitchen' : isManager() ? 'all' : 'bar';
     const mine = S.items.filter(it => COUNT_AREAS[area].includes(areaOf(it)) && isMine(it));
-    const spots = [...S.spots, ...new Set(mine.map(i => i.spot).filter(s => s && !S.spots.includes(s)))]
-      .map(s => [s, mine.filter(i => i.spot === s).length]).filter(([, n]) => n);
+    const spots = [...S.spots, ...new Set(mine.flatMap(spotsOf).filter(s => !S.spots.includes(s)))]
+      .map(s => [s, mine.filter(i => hasSpot(i, s)).length]).filter(([, n]) => n);
     $('#countStart').innerHTML = opts.map(([a, l], i) => `<button class="btn ${i ? '' : 'primary'} block" type="button" data-start-count="${a}">${l}</button>`).join('') +
       (spots.length ? `<h3 style="margin-top:8px">Or count one storage spot</h3><div class="list">${spots.map(([s, n]) => `
         <button class="li" type="button" data-start-count="${area}" data-spot="${esc(s)}">
@@ -1485,45 +1522,55 @@ function renderCount() {
   const ids = Object.keys(c.tally);
   const label = c.spot ? `${c.spot} count` : { bar: 'Bar count', kitchen: 'Kitchen count', all: 'Full count' }[countArea()];
   $('#countHead').textContent = `${label} · ${ids.length} counted`;
+  const row = (it, spot, val, sub) => `<div class="li"><div class="grow"><div class="nm">${esc(it.name)}</div><div class="sub">${esc(sub)}</div></div>
+      <button class="mini" type="button" data-dec="${esc(it.id)}" data-spot="${esc(spot)}" aria-label="Minus one">−</button>
+      <input class="count-n" type="number" inputmode="decimal" step="any" data-set="${esc(it.id)}" data-spot="${esc(spot)}" value="${esc(val)}" aria-label="Count for ${esc(it.name)}${spot ? ' in ' + esc(spot) : ''}" style="width:70px">
+      <button class="mini" type="button" data-inc="${esc(it.id)}" data-spot="${esc(spot)}" aria-label="Plus one">+</button></div>`;
   $('#countList').innerHTML = ids.length ? ids.slice().reverse().map(id => {
     const it = itemById(id); if (!it) return '';
-    return `<div class="li"><div class="grow"><div class="nm">${esc(it.name)}</div><div class="sub">${esc(countSub(it))}</div></div>
-      <button class="mini" type="button" data-dec="${esc(id)}" aria-label="Minus one">−</button>
-      <input class="count-n" type="number" inputmode="decimal" step="any" data-set="${esc(id)}" value="${esc(c.tally[id])}" aria-label="Count for ${esc(it.name)}" style="width:70px">
-      <button class="mini" type="button" data-inc="${esc(id)}" aria-label="Plus one">+</button></div>`;
+    const p = (c.parts || {})[id];
+    if (!multiSpot(it) || !p) return row(it, '', c.tally[id], countSub(it));
+    return spotsOf(it).filter(s => s in p).map(s => row(it, s, p[s], `in ${s} · total ${fmt(c.tally[id])} · ${countSub(it)}`)).join('');
   }).join('') : '<div class="empty">Nothing counted yet. Scan, or type numbers in the list below.</div>';
 
-  // Everything not counted yet, by where it's kept, in the order of the storage spots.
-  const todo = S.items.filter(it => inCount(it) && !(it.id in c.tally));
-  const order = [...S.spots, ...new Set(todo.map(i => i.spot).filter(s => s && !S.spots.includes(s))), ''];
-  const groups = order.map(s => [s, todo.filter(i => (i.spot || '') === s).sort((a, b) => a.name.localeCompare(b.name))]).filter(g => g[1].length);
+  // Everything not counted yet, by where it's kept, in the order of the storage spots. An item kept in several
+  // spots shows under each spot until it has a number there.
+  const todo = [];
+  S.items.filter(inCount).forEach(it => {
+    if (!multiSpot(it)) { if (!(it.id in c.tally)) todo.push([it, spotsOf(it)[0] || '']); return; }
+    spotsOf(it).forEach(s => { if (partOf(it.id, s) === undefined) todo.push([it, s]); });
+  });
+  const order = [...new Set([...(c.spot ? [c.spot] : []), ...S.spots, ...todo.map(t => t[1]).filter(Boolean), ''])];
+  const groups = order.map(s => [s, todo.filter(t => norm(t[1]) === norm(s)).map(t => t[0]).sort((a, b) => a.name.localeCompare(b.name))]).filter(g => g[1].length);
   const photo = s => S.photos[s] ? `<button class="plain" type="button" data-photo-open="${esc(s)}" aria-label="Bigger photo of ${esc(s)}" style="display:block;width:100%"><img class="spot-thumb" data-photo="${esc(s)}" alt="Photo of ${esc(s)}"></button>` : '';
+  const head = s => !s ? 'No storage spot set' : c.spot && norm(s) !== norm(c.spot) ? `${s} · also kept here` : s;
   $('#countTodo').innerHTML = (c.spot && !todo.length ? photo(c.spot) : '') + (todo.length ? `<h3>Not counted yet · ${todo.length}</h3>` + groups.map(([s, list]) => `
-    <details open style="margin-bottom:10px"><summary>${esc(s || 'No storage spot set')} · ${list.length}</summary>
+    <details open style="margin-bottom:10px"><summary>${esc(head(s))} · ${list.length}</summary>
       ${photo(s)}
-      <div class="list">${list.map(it => `<div class="li"><div class="grow"><div class="nm">${esc(it.name)}</div><div class="sub">${esc(countSub(it))}</div></div>
-        <input class="count-n" type="number" inputmode="decimal" step="any" min="0" data-todo="${esc(it.id)}" placeholder="–" aria-label="Count for ${esc(it.name)}" style="width:70px"></div>`).join('')}</div>
+      <div class="list">${list.map(it => `<div class="li"><div class="grow"><div class="nm">${esc(it.name)}</div><div class="sub">${esc((multiSpot(it) ? `also in ${spotsOf(it).filter(x => norm(x) !== norm(s)).join(', ')} · ` : '') + countSub(it))}</div></div>
+        <input class="count-n" type="number" inputmode="decimal" step="any" min="0" data-todo="${esc(it.id)}" data-spot="${esc(multiSpot(it) ? s : '')}" placeholder="–" aria-label="Count for ${esc(it.name)}${multiSpot(it) ? ' in ' + esc(s) : ''}" style="width:70px"></div>`).join('')}</div>
     </details>`).join('') : (ids.length ? `<div class="banner good" style="margin-top:12px">Everything ${c.spot ? 'in ' + esc(c.spot) : 'on the list'} is counted.</div>` : ''));
   fillPhotos($('#countTodo'));
   $$('[data-photo-open]', $('#countTodo')).forEach(b => b.onclick = () => spotPhotoSheet(b.dataset.photoOpen));
 
-  $$('[data-inc]').forEach(b => b.onclick = () => bump(b.dataset.inc, 1));
-  $$('[data-dec]').forEach(b => b.onclick = () => bump(b.dataset.dec, -1));
-  $$('[data-set]').forEach(i => i.onchange = () => { const v = num(i.value); if (v === null) delete S.count.tally[i.dataset.set]; else S.count.tally[i.dataset.set] = Math.max(0, v); save(LS.count, S.count); renderCount(); });
+  $$('[data-inc]').forEach(b => b.onclick = () => bump(b.dataset.inc, 1, b.dataset.spot));
+  $$('[data-dec]').forEach(b => b.onclick = () => bump(b.dataset.dec, -1, b.dataset.spot));
+  $$('[data-set]').forEach(i => i.onchange = () => { setCounted(i.dataset.set, i.dataset.spot, num(i.value)); renderCount(); });
   $$('[data-todo]').forEach(i => i.onchange = () => {
     const v = num(i.value);
     if (v === null) return;
     // Keep the page where it is: the row moves up into Counted.
     const y = window.scrollY;
-    S.count.tally[i.dataset.todo] = Math.max(0, v); save(LS.count, S.count); renderCount();
+    setCounted(i.dataset.todo, i.dataset.spot, v); renderCount();
     window.scrollTo(0, y);
   });
 }
-function bump(id, n) {
-  S.count.tally[id] = Math.max(0, round2((S.count.tally[id] || 0) + n));
-  // re-insert so the most recent sits at the top
-  const v = S.count.tally[id]; delete S.count.tally[id]; S.count.tally[id] = v;
-  save(LS.count, S.count); renderCount();
+function bump(id, n, spot) {
+  const it = itemById(id);
+  if (it && multiSpot(it)) spot = spot || countSpotFor(it); else spot = '';
+  const cur = spot ? partOf(id, spot) || 0 : S.count.tally[id] || 0;
+  setCounted(id, spot, round2(cur + n));
+  renderCount();
 }
 function onCountCode(code) {
   if (!S.count) return;
@@ -1535,18 +1582,19 @@ function onCountCode(code) {
   }
   if (!isMine(hit.item)) { beep(false); toast(`${hit.item.name} is a ${AREAS[areaOf(hit.item)].toLowerCase()} item, not on this count`, { bad: true }); return; }
   beep(true);
-  bump(hit.item.id, hit.mult);
+  const spot = countSpotFor(hit.item);
+  bump(hit.item.id, hit.mult, spot);
   const fl = $('#countFlash');
-  fl.textContent = `+${hit.mult}${hit.isCase ? ' (case)' : ''} ${hit.item.name} → ${fmt(S.count.tally[hit.item.id])}`;
+  fl.textContent = `+${hit.mult}${hit.isCase ? ' (case)' : ''} ${hit.item.name} → ${spot ? `${fmt(partOf(hit.item.id, spot))} in ${spot} (total ${fmt(S.count.tally[hit.item.id])})` : fmt(S.count.tally[hit.item.id])}`;
   fl.classList.add('on'); clearTimeout(fl._t); fl._t = setTimeout(() => fl.classList.remove('on'), 1400);
 }
 $('#countManual').onsubmit = e => { e.preventDefault(); const c = normCode($('#countCode').value); $('#countCode').value = ''; if (c) onCountCode(c); };
 $('#countPick').onclick = async () => {
   const it = await pickItemSheet('Count an item');
   if (!it) return;
-  if (!(it.id in S.count.tally)) S.count.tally[it.id] = 0;
-  bump(it.id, 0);
-  const inp = $(`[data-set="${CSS.escape(it.id)}"]`); if (inp) { inp.focus(); inp.select(); }
+  const spot = countSpotFor(it);
+  bump(it.id, 0, spot);
+  const inp = $(`#countList [data-set="${CSS.escape(it.id)}"][data-spot="${CSS.escape(spot)}"]`); if (inp) { inp.focus(); inp.select(); }
 };
 $('#countDiscard').onclick = () => {
   if (Object.keys(S.count.tally).length && !confirm('Throw away this count?')) return;
@@ -1557,12 +1605,16 @@ $('#countSave').onclick = () => {
   if (!ids.length) return toast('Nothing counted yet', { bad: true });
   const diffs = ids.map(id => ({ it: itemById(id), n: S.count.tally[id] })).filter(x => x.it);
   const left = S.items.filter(it => inCount(it) && !(it.id in S.count.tally)).length;
+  // Kept in several spots but not counted in all of them: the total is only what was counted.
+  const partial = diffs.filter(d => multiSpot(d.it) && (S.count.parts || {})[d.it.id])
+    .map(d => [d.it, spotsOf(d.it).filter(s => partOf(d.it.id, s) === undefined)]).filter(x => x[1].length);
   const sh = openSheet('Save count?', `
-    <p class="hint">These counts will replace the on-hand numbers in the sheet.${left ? ` ${nItems(left)} on the list weren't counted; they stay as they are.` : ''}</p>
+    <p class="hint">These counts will replace the on-hand numbers in the sheet.${left ? ` ${left === 1 ? '1 item on the list wasn’t counted; it stays as it is.' : left + ' items on the list weren’t counted; they stay as they are.'}` : ''}</p>
+    ${partial.length ? `<div class="banner warn">Not counted in every spot, so the total is only what was counted: ${partial.map(([it, s]) => `<b>${esc(it.name)}</b> (nothing typed for ${esc(s.join(', '))})`).join('; ')}. Go back and type 0 where there are none.</div>` : ''}
     <table class="prev"><thead><tr><th>Item</th><th class="n">Sheet</th><th class="n">Counted</th><th class="n">Diff</th></tr></thead><tbody>
     ${diffs.map(d => { const was = sheetCount(d.it); const df = round2(d.n - was); return `<tr><td>${esc(d.it.name)}${isContainer(d.it) ? `<div class="small-note">full ${containerWords(d.it)}</div>` : ''}</td><td class="n">${fmt(was)}</td><td class="n"><b>${fmt(d.n)}</b></td><td class="n" style="color:${df < 0 ? 'var(--accent)' : df > 0 ? 'var(--ok)' : 'inherit'}">${df > 0 ? '+' : ''}${fmt(df)}</td></tr>`; }).join('')}
     </tbody></table>
-    <button class="btn good block" type="button" id="doSave" style="margin-top:14px">Save ${diffs.length} counts</button>`);
+    <button class="btn good block" type="button" id="doSave" style="margin-top:14px">Save ${diffs.length === 1 ? '1 count' : diffs.length + ' counts'}</button>`);
   $('#doSave', sh.body).onclick = () => {
     diffs.forEach(d => stockChange(d.it, 'set', d.n, 'Count'));
     Cam.stop(); S.count = null; save(LS.count, null);
@@ -2007,7 +2059,7 @@ $('#showRecipes').onclick = async () => {
 function listEditor({ title, hint, key, list, action, field, max, onSaved, photos }) {
   const rows = list.map(n => ({ orig: n, name: n }));
   const removed = []; // {orig, n: items using it, moveTo}
-  const used = n => S.items.filter(i => norm(i[key]) === norm(n)).length;
+  const used = n => S.items.filter(i => key === 'spot' ? hasSpot(i, n) : norm(i[key]) === norm(n)).length;
   const sh = openSheet(title, '');
   const draw = focus => {
     const names = rows.map(r => r.name.trim()).filter(Boolean);
@@ -2043,6 +2095,8 @@ function listEditor({ title, hint, key, list, action, field, max, onSaved, photo
     $('#leAdd', sh.body).onclick = () => { rows.push({ orig: '', name: '' }); draw(rows.length - 1); };
     $('#leSave', sh.body).onclick = async e => {
       const btn = e.currentTarget;
+      // A spot name can't hold |, which separates an item's spots.
+      if (key === 'spot') rows.forEach(r => { r.name = r.name.split('|').join('/'); });
       const names2 = rows.map(r => r.name.trim()).filter(Boolean);
       if (!names2.length) return toast('Keep at least one', { bad: true });
       if (names2.length > max) return toast(`Keep ${max} or fewer`, { bad: true });
@@ -2752,12 +2806,14 @@ function labelPages(list, skip, withBarcode) {
 $('#showLabels').onclick = () => {
   const o = { cat: '', spot: '', onlyPar: false, onlyCode: false, sort: 'spot', start: 1, barcode: true };
   const spotRank = s => { const i = S.spots.indexOf(s); return s ? (i < 0 ? S.spots.length : i) : S.spots.length + 1; };
+  // One label for each spot an item is kept in, since each shelf needs its own.
   const pick = () => visibleItems()
-    .filter(i => (!o.cat || i.category === o.cat) && (!o.spot || i.spot === o.spot))
+    .flatMap(i => (spotsOf(i).length ? spotsOf(i) : ['']).map(s => Object.assign({}, i, { spot: s })))
+    .filter(i => (!o.cat || i.category === o.cat) && (!o.spot || norm(i.spot) === norm(o.spot)))
     .filter(i => (!o.onlyPar || num(i.par) !== null) && (!o.onlyCode || i.upc || i.caseUpc))
     .sort((a, b) => o.sort === 'spot' ? spotRank(a.spot) - spotRank(b.spot) || byCategory(a, b) : o.sort === 'name' ? a.name.localeCompare(b.name) : byCategory(a, b));
   const cats = categories().filter(c => visibleItems().some(i => i.category === c));
-  const spots = S.spots.filter(s => visibleItems().some(i => i.spot === s));
+  const spots = S.spots.filter(s => visibleItems().some(i => hasSpot(i, s)));
   const sh = openSheet('Shelf labels', `
     <p class="hint">For Avery 18160 or 5160 address labels: 30 per sheet, 2⅝" × 1". Each label shows the item's name, barcode and par.</p>
     <div class="grid2">
@@ -2838,7 +2894,7 @@ function doorPages(spot, items, o) {
   return chunks.map((list, p) => pageHtml(list.map(rowHtml).join(''), chunks.length > 1 ? ` · page ${p + 1} of ${chunks.length}` : ''));
 }
 $('#showDoors').onclick = () => {
-  const itemsIn = s => visibleItems().filter(i => i.spot === s).sort(byCategory);
+  const itemsIn = s => visibleItems().filter(i => hasSpot(i, s)).sort(byCategory);
   const spots = S.spots.filter(s => itemsIn(s).length);
   if (!spots.length) return toast('No items have a storage spot yet. Set one in Edit item → Kept where.', { bad: true, ms: 5000 });
   const o = { pick: spots.filter(s => /cool|freez|walk/i.test(s)), barcode: true, count: false };
@@ -2877,7 +2933,7 @@ $('#showDoors').onclick = () => {
 // download, so a count someone did in the app since isn't undone by an old number.
 const BULK_ID = 'ID (leave as is)', BULK_WAS = 'On hand when downloaded (leave as is)';
 const bulkFields = () => [
-  ['Name', 'name', 'text'], ['Category', 'category', 'text'], ['Storage spot', 'spot', 'text'], ['Area', 'area', 'area'],
+  ['Name', 'name', 'text'], ['Category', 'category', 'text'], ['Storage spots', 'spot', 'spots'], ['Area', 'area', 'area'],
   ['Type', 'type', 'type'], ['Kept as', 'kind', 'kind'], ['Unit', 'unit', 'text'], ['Par', 'par', 'num'], ['On hand', 'onHand', 'num'],
   ['Cost', 'cost', 'num'], ['UPC', 'upc', 'code'], ['Case UPC', 'caseUpc', 'code'], ['Case qty', 'caseQty', 'num'],
   ['Pours per unit', 'poursPerUnit', 'num'], ...(POST.skytab ? [['SkyTab names', 'posNames', 'text']] : [])];
@@ -2886,7 +2942,7 @@ const BULK_SHOW = {
   type: v => (v === 'supply' ? 'Supply' : 'Sold'),
   kind: v => ({ keg: 'Keg', box: 'Box' }[v] || '')
 };
-const bulkCur = (it, key, kind) => kind === 'num' ? num(it[key]) : kind === 'area' ? (it.area || 'bar') : kind === 'type' ? (it.type || 'sold') : String(it[key] === null || it[key] === undefined ? '' : it[key]);
+const bulkCur = (it, key, kind) => kind === 'spots' ? spotsOf(it).join(SPOT_SEP) : kind === 'num' ? num(it[key]) : kind === 'area' ? (it.area || 'bar') : kind === 'type' ? (it.type || 'sold') : String(it[key] === null || it[key] === undefined ? '' : it[key]);
 const bulkText = (key, kind, v) => v === null || v === '' ? '(blank)' : kind === 'num' ? fmt(v) : BULK_SHOW[kind] ? BULK_SHOW[kind](v) : String(v);
 // Excel turns a barcode typed as a number into one without its leading zero; put it back when the check digit says so.
 function bulkCode(v) {
@@ -2898,6 +2954,7 @@ function bulkCode(v) {
 function bulkParse(kind, raw) {
   const s = String(raw === null || raw === undefined ? '' : raw).trim();
   if (kind === 'text') return s;
+  if (kind === 'spots') { const seen = new Set(); return s.split('|').map(x => x.trim()).map(x => S.spots.find(sp => norm(sp) === norm(x)) || x).filter(x => x && !seen.has(norm(x)) && seen.add(norm(x))).join(SPOT_SEP); }
   if (kind === 'code') return bulkCode(raw);
   if (kind === 'num') { if (s === '') return null; const n = Number(s.replace(/[$,\s]/g, '')); return isNaN(n) || n < 0 ? { err: `"${s}" isn't a number` } : n; }
   if (kind === 'area') return /^k/i.test(s) ? 'kitchen' : /^s/i.test(s) ? 'shared' : 'bar';
@@ -2932,7 +2989,8 @@ $('#bulkDown').onclick = async () => {
       ['  Numbers you didn\'t touch are left alone, even if someone counted in the app after you downloaded.'],
       ['• Vendor 1–4 and Price 1–4: where you buy the item and its price per unit. Cost follows the lowest price.'],
       ['  A vendor name that isn\'t on the Vendors list yet is added to it.'],
-      ['• Storage spot: a new spot name is added to the storage spot list.'],
+      ['• Storage spots: an item kept in more than one spot lists them with | between, like  Back bar | Storage room'],
+      ['  On hand is the total of all its spots. A new spot name is added to the storage spot list.'],
       ['• Area: Bar, Kitchen or Shared.   Type: Sold or Supply.   Kept as: blank, Keg or Box.'],
       ['• Barcodes: Excel may drop a leading zero from a barcode typed as a number. The app puts it back.']]);
     help['!cols'] = [{ wch: 110 }];
@@ -2953,6 +3011,7 @@ function bulkPlan(sheets) {
   if (!rows) throw new Error('No Name column in that file. Use the file from Download for bulk edit.');
   const idx = {};
   rows[h].forEach((c, i) => { const k = norm(c); if (k && idx[k] === undefined) idx[k] = i; });
+  if (idx['storage spots'] === undefined && idx['storage spot'] !== undefined) idx['storage spots'] = idx['storage spot'];  // files from v1.7
   const has = hd => idx[norm(hd)] !== undefined;
   const hasPrices = [1, 2, 3, 4].some(n => has('Vendor ' + n) || has('Price ' + n));
   const byNameCount = {};
@@ -3027,7 +3086,7 @@ function bulkPlan(sheets) {
       // With a price on the row, Cost follows the lowest price, so the Cost column is ignored.
       if ('cost' in send && list.some(x => x.price !== '')) { delete send.cost; lines.splice(lines.findIndex(l => l.startsWith('Cost:')), 1); }
     }
-    if ('spot' in send && send.spot && !S.spots.some(s => norm(s) === norm(send.spot)) && !newSpots.some(s => norm(s) === norm(send.spot))) newSpots.push(send.spot);
+    if ('spot' in send) spotsOf(send).forEach(sp => { if (!S.spots.some(s => norm(s) === norm(sp)) && !newSpots.some(s => norm(s) === norm(sp))) newSpots.push(sp); });
     if (!lines.length && it) return;
     sends.push({ row: rowNo, name: it ? it.name : name, isNew: !it, lines, send });
   });
@@ -3108,7 +3167,7 @@ function demoCopyPlan() {
     // Spots on the sheet that items or a photo still use stay, so nothing is left without a spot and no photo is lost.
     S.spots.forEach(s => {
       if (db.spots.some(d => norm(d) === norm(s))) return;
-      if (S.items.some(i => norm(i.spot) === norm(s)) || S.photos[s]) plan.keepSpots.push(s); else plan.dropSpots.push(s);
+      if (S.items.some(i => hasSpot(i, s)) || S.photos[s]) plan.keepSpots.push(s); else plan.dropSpots.push(s);
     });
     if (!sameList(db.spots.concat(plan.keepSpots), S.spots)) plan.spots = db.spots.slice();
   }
