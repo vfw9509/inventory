@@ -12,8 +12,8 @@
  * To change a PIN later: edit it here, Save, then Deploy > Manage deployments > edit > New version > Deploy.
  */
 
-const STAFF_PIN = 'SET-STAFF-PIN';      // bartenders
-const MANAGER_PIN = 'SET-MANAGER-PIN';  // quartermaster / bar manager
+const STAFF_PIN = '9509';      // bartenders
+const MANAGER_PIN = '1141';  // quartermaster / bar manager
 
 const ITEMS_SHEET = 'Items';
 const LOG_SHEET = 'Log';
